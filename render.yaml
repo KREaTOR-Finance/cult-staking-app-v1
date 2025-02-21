@@ -1,0 +1,63 @@
+services:
+  - type: web
+    name: cult-staking-backend
+    env: node
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      # Xaman Integration
+      - key: REACT_APP_XAMAN_API_KEY
+        sync: false
+      - key: REACT_APP_XAMAN_API_SECRET
+        sync: false
+      - key: REACT_APP_XAMAN_ENVIRONMENT
+        value: production
+      # XRPL Network Configuration  
+      - key: REACT_APP_XRPL_NETWORK
+        value: MAINNET
+      - key: REACT_APP_XRPL_MAINNET_URL
+        value: wss://xrplcluster.com
+      - key: REACT_APP_XRPL_MAINNET_EXPLORER
+        value: https://livenet.xrpl.org
+      # Project Wallet Configuration
+      - key: REACT_APP_PROJECT_WALLET_ADDRESS
+        value: rpNEkp6nEW51MFZuq36kNF6uHT441Jstys
+      - key: REACT_APP_RAKE_ADDRESS
+        value: raymA4FrBEdLjJyWHX2icyFqwSbKquSTQd
+      # Token Configuration  
+      - key: REACT_APP_DEFAULT_TOKEN_CURRENCY
+        value: 43756C7400000000000000000000000000000000
+      - key: REACT_APP_DEFAULT_TOKEN_ISSUER
+        value: rpDLbEi1C19YxF3mjEbAU9nh8xevfNNMgm
+      # Smart Contract Addresses
+      - key: REACT_APP_STAKING_CONTRACT
+        value: rCULTStakingContractAddressHere
+      - key: REACT_APP_CULT_TOKEN_ISSUER
+        value: rCULTTokenIssuerAddressHere
+      # Staking Configuration
+      - key: REACT_APP_DAILY_EMISSION_YEAR_1
+        value: 205479
+      - key: REACT_APP_DAILY_EMISSION_YEAR_2
+        value: 342466
+      - key: REACT_APP_DAILY_EMISSION_YEAR_3
+        value: 410958
+      - key: REACT_APP_DAILY_EMISSION_YEAR_4
+        value: 342466
+      - key: REACT_APP_DAILY_EMISSION_YEAR_5
+        value: 202740
+      - key: REACT_APP_STAKING_START_DATE
+        value: 2024-01-01
+      # Staking Parameters
+      - key: REACT_APP_INNER_CIRCLE_BONUS
+        value: 20
+      - key: REACT_APP_EARLY_UNSTAKE_PENALTY
+        value: 25
+      - key: REACT_APP_MIN_STAKE_DURATION
+        value: 7
+      # IPFS Gateway
+      - key: REACT_APP_IPFS_GATEWAY
+        value: https://ipfs.io/ipfs/ 
