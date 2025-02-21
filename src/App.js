@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { HashRouter as Router } from 'react-router-dom';
 import { connectToXRPL, disconnectFromXRPL } from './services/XRPLService';
 import xamanService from './services/XamanService';
 import WalletConnect from './components/WalletConnect';
@@ -146,16 +146,6 @@ function App() {
     return address ? address.charAt(0).toUpperCase() : '?';
   };
 
-  // Update the backend API URL based on environment
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'production') {
-      // Update this to your Render backend URL
-      window.BACKEND_URL = 'https://cult-staking-backend.onrender.com';
-    } else {
-      window.BACKEND_URL = 'http://localhost:3000';
-    }
-  }, []);
-
   if (isInitializing) {
     return (
       <div className="app-loading">
@@ -166,7 +156,7 @@ function App() {
   }
 
   return (
-    <BrowserRouter basename="/cult-staking-app-v1">
+    <Router>
       <div className="app">
         {walletAddress && (
           <nav className="app-nav">
@@ -258,7 +248,7 @@ function App() {
           />
         )}
       </div>
-    </BrowserRouter>
+    </Router>
   );
 }
 

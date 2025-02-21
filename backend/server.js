@@ -4,7 +4,18 @@ const cors = require('cors');
 const axios = require('axios');
 
 const app = express();
-app.use(cors());
+
+// Configure CORS with specific options
+app.use(cors({
+  origin: [
+    'https://kreator-finance.github.io',
+    'http://localhost:3000',
+    'http://localhost:4000'
+  ],
+  methods: ['GET', 'POST'],
+  credentials: true
+}));
+
 app.use(express.json());
 
 // Load API keys from .env

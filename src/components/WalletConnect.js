@@ -25,7 +25,7 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
       const address = await xamanService.getConnectedAddress();
       if (address) {
         onConnect(address);
-        navigate('/dashboard');
+        navigate('#/dashboard');
         return true;
       }
       return false;
@@ -37,13 +37,11 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
 
   // Handle redirect after mobile sign
   const handleRedirect = useCallback(async () => {
-    // First check if we have a payload ID either from state or localStorage
     const currentPayloadId = payloadId || localStorage.getItem('xaman_payload_id');
     
     if (currentPayloadId) {
       try {
         addDebugLog(`Checking payload status after return. PayloadID: ${currentPayloadId}`);
-        addDebugLog(`Current URL: ${window.location.href}`);
         
         const status = await xamanService.getPayloadStatus(currentPayloadId);
         addDebugLog(`Return status: ${JSON.stringify(status, null, 2)}`);
@@ -53,7 +51,7 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
             addDebugLog(`Successfully connected with account: ${status.account}`);
             onConnect(status.account);
             
-            // Clear all states and storage after successful connection
+            // Clear states
             setQrCode(null);
             setDeepLink(null);
             setPayloadId(null);
@@ -61,8 +59,7 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
             setDebugLogs([]);
             localStorage.removeItem('xaman_payload_id');
             
-            // Navigate using React Router
-            navigate('/dashboard');
+            navigate('#/dashboard');
           } else {
             addDebugLog('Account not yet signed, waiting for signature...');
           }
@@ -72,7 +69,6 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
       } catch (err) {
         console.error('❌ Redirect handling failed:', err);
         addDebugLog(`Redirect error: ${err.message}`);
-        // Clear payload on error to prevent loops
         localStorage.removeItem('xaman_payload_id');
         setPayloadId(null);
       }
@@ -150,7 +146,7 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
             setPayloadId(null);
             setAppStoreLink(null);
             // Navigate using React Router
-            navigate('/dashboard');
+            navigate('#/dashboard');
           }
         } catch (error) {
           addDebugLog(`Poll error: ${error.message}`);

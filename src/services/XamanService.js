@@ -15,13 +15,15 @@ const BACKEND_URL = window.location.hostname === 'kreator-finance.github.io'
   ? 'https://cult-staking-app-v1.onrender.com/api'
   : window.location.hostname === 'localhost'
     ? 'http://localhost:4000/api'
-    : `http://${window.location.hostname}:4000/api`;
+    : `https://cult-staking-app-v1.onrender.com/api`; // Default to production for any other hostname
 
-// Log environment info for debugging
-console.log('Environment:', {
+// Enhanced debug logging
+console.log('XamanService Initialization:', {
   hostname: window.location.hostname,
   backendUrl: BACKEND_URL,
-  isGitHubPages: window.location.hostname === 'kreator-finance.github.io'
+  isGitHubPages: window.location.hostname === 'kreator-finance.github.io',
+  fullUrl: window.location.href,
+  userAgent: navigator.userAgent
 });
 
 class XamanService {
@@ -114,14 +116,20 @@ class XamanService {
 
   async createSignRequest() {
     try {
-      console.log('Making API request to:', `${BACKEND_URL}/xaman/sign-request`);
+      console.log('Creating sign request:', {
+        backendUrl: BACKEND_URL,
+        endpoint: `${BACKEND_URL}/xaman/sign-request`,
+        currentUrl: window.location.href
+      });
       
       // Construct return URLs with proper path and origin
       const returnUrl = new URL(window.location.href);
-      // Clear any existing parameters but keep the path
       returnUrl.search = '?signed=true';
       
-      console.log('Constructed return URL:', returnUrl.toString());
+      console.log('Sign request details:', {
+        returnUrl: returnUrl.toString(),
+        isMobile: this.isMobile
+      });
       
       const requestBody = {
         txjson: {
@@ -139,7 +147,7 @@ class XamanService {
         }
       };
 
-      console.log('Full request body:', JSON.stringify(requestBody, null, 2));
+      console.log('Request body:', JSON.stringify(requestBody, null, 2));
 
       const response = await fetch(`${BACKEND_URL}/xaman/sign-request`, {
         method: 'POST',
@@ -149,17 +157,29 @@ class XamanService {
         body: JSON.stringify(requestBody)
       });
 
-      console.log('Response status:', response.status);
+      console.log('API Response:', {
+        status: response.status,
+        ok: response.ok,
+        statusText: response.statusText
+      });
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('API Error Response:', errorText);
+        console.error('API Error Details:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
         throw new Error(`API request failed: ${response.status} ${errorText}`);
       }
 
       const data = await response.json();
-      console.log('API Response data:', data);
-      console.log('Deep link from API:', data.next?.app || data.next?.always);
+      console.log('API Success Response:', {
+        uuid: data.uuid,
+        hasNext: !!data.next,
+        hasQR: !!data.refs?.qr_png,
+        deepLink: data.next?.app || data.next?.always
+      });
 
       if (!data || !data.uuid) {
         console.error('Invalid API response:', data);
