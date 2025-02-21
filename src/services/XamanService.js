@@ -10,12 +10,8 @@ export const TX_STATUS = {
   REJECTED: 'rejected'
 };
 
-// Environment-specific backend URL
-const BACKEND_URL = window.location.hostname === 'kreator-finance.github.io' 
-  ? 'https://cult-staking-app-v1.onrender.com/api'
-  : window.location.hostname === 'localhost'
-    ? 'http://localhost:4000/api'
-    : `https://cult-staking-app-v1.onrender.com/api`; // Default to production for any other hostname
+// Always use Render backend
+const BACKEND_URL = 'https://cult-staking-app-v1.onrender.com/api';
 
 // Enhanced debug logging
 console.log('XamanService Initialization:', {
