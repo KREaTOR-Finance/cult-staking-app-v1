@@ -1,0 +1,14 @@
+{
+  "files": {
+    "main.css": "/cult-staking-app-v1/static/css/main.1bdf3523.css",
+    "main.js": "/cult-staking-app-v1/static/js/main.86a2cdee.js",
+    "static/media/bg-image.jpg": "/cult-staking-app-v1/static/media/bg-image.9b3e965593e18204e101.jpg",
+    "index.html": "/cult-staking-app-v1/index.html",
+    "main.1bdf3523.css.map": "/cult-staking-app-v1/static/css/main.1bdf3523.css.map",
+    "main.86a2cdee.js.map": "/cult-staking-app-v1/static/js/main.86a2cdee.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.1bdf3523.css",
+    "static/js/main.86a2cdee.js"
+  ]
+}
