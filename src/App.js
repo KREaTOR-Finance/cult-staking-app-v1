@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { BrowserRouter } from 'react-router-dom';
 import { connectToXRPL, disconnectFromXRPL } from './services/XRPLService';
 import xamanService from './services/XamanService';
 import WalletConnect from './components/WalletConnect';
@@ -165,97 +166,99 @@ function App() {
   }
 
   return (
-    <div className="app">
-      {walletAddress && (
-        <nav className="app-nav">
-          <div className="nav-links">
-            <button
-              className={`nav-button ${activeTab === 'dashboard' ? 'active' : ''}`}
-              onClick={() => setActiveTab('dashboard')}
-            >
-              Dashboard
-            </button>
-            <button
-              className={`nav-button ${activeTab === 'staking' ? 'active' : ''}`}
-              onClick={() => setActiveTab('staking')}
-            >
-              Stake NFTs
-            </button>
-            <button
-              className={`nav-button ${activeTab === 'profile' ? 'active' : ''}`}
-              onClick={() => setActiveTab('profile')}
-            >
-              Profile
-            </button>
-            <button
-              className={`nav-button ${activeTab === 'leaderboard' ? 'active' : ''}`}
-              onClick={() => setActiveTab('leaderboard')}
-            >
-              Leaderboard
-            </button>
-          </div>
-          
-          <div className="profile-menu" ref={menuRef}>
-            <div 
-              className="profile-image"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              title={walletAddress}
-            >
-              {getProfileInitial(walletAddress)}
+    <BrowserRouter basename="/cult-staking-app-v1">
+      <div className="app">
+        {walletAddress && (
+          <nav className="app-nav">
+            <div className="nav-links">
+              <button
+                className={`nav-button ${activeTab === 'dashboard' ? 'active' : ''}`}
+                onClick={() => setActiveTab('dashboard')}
+              >
+                Dashboard
+              </button>
+              <button
+                className={`nav-button ${activeTab === 'staking' ? 'active' : ''}`}
+                onClick={() => setActiveTab('staking')}
+              >
+                Stake NFTs
+              </button>
+              <button
+                className={`nav-button ${activeTab === 'profile' ? 'active' : ''}`}
+                onClick={() => setActiveTab('profile')}
+              >
+                Profile
+              </button>
+              <button
+                className={`nav-button ${activeTab === 'leaderboard' ? 'active' : ''}`}
+                onClick={() => setActiveTab('leaderboard')}
+              >
+                Leaderboard
+              </button>
             </div>
-            {isMenuOpen && (
-              <div className="menu-dropdown">
-                <div className="menu-item">
-                  <i className="fas fa-wallet"></i>
-                  {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
-                </div>
-                <div 
-                  className="menu-item disconnect"
-                  onClick={handleWalletDisconnect}
-                >
-                  <i className="fas fa-sign-out-alt"></i>
-                  Disconnect
-                </div>
+            
+            <div className="profile-menu" ref={menuRef}>
+              <div 
+                className="profile-image"
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                title={walletAddress}
+              >
+                {getProfileInitial(walletAddress)}
               </div>
-            )}
-          </div>
-        </nav>
-      )}
-
-      <main className="app-main">
-        {!walletAddress ? (
-          <WalletConnect
-            onConnect={handleWalletConnect}
-            onDisconnect={handleWalletDisconnect}
-          />
-        ) : (
-          <>
-            {activeTab === 'dashboard' && (
-              <Dashboard walletAddress={walletAddress} />
-            )}
-            {activeTab === 'staking' && (
-              <Staking
-                walletAddress={walletAddress}
-                onStakeNFT={handleStakeNFT}
-                onUnstakeNFT={handleUnstakeNFT}
-              />
-            )}
-            {activeTab === 'profile' && (
-              <Profile walletAddress={walletAddress} />
-            )}
-            {activeTab === 'leaderboard' && <Leaderboard />}
-          </>
+              {isMenuOpen && (
+                <div className="menu-dropdown">
+                  <div className="menu-item">
+                    <i className="fas fa-wallet"></i>
+                    {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                  </div>
+                  <div 
+                    className="menu-item disconnect"
+                    onClick={handleWalletDisconnect}
+                  >
+                    <i className="fas fa-sign-out-alt"></i>
+                    Disconnect
+                  </div>
+                </div>
+              )}
+            </div>
+          </nav>
         )}
-      </main>
 
-      {notification && (
-        <Notification
-          message={notification.message}
-          type={notification.type}
-          onClose={() => setNotification(null)}
-        />
-      )}
-    </div>
+        <main className="app-main">
+          {!walletAddress ? (
+            <WalletConnect
+              onConnect={handleWalletConnect}
+              onDisconnect={handleWalletDisconnect}
+            />
+          ) : (
+            <>
+              {activeTab === 'dashboard' && (
+                <Dashboard walletAddress={walletAddress} />
+              )}
+              {activeTab === 'staking' && (
+                <Staking
+                  walletAddress={walletAddress}
+                  onStakeNFT={handleStakeNFT}
+                  onUnstakeNFT={handleUnstakeNFT}
+                />
+              )}
+              {activeTab === 'profile' && (
+                <Profile walletAddress={walletAddress} />
+              )}
+              {activeTab === 'leaderboard' && <Leaderboard />}
+            </>
+          )}
+        </main>
+
+        {notification && (
+          <Notification
+            message={notification.message}
+            type={notification.type}
+            onClose={() => setNotification(null)}
+          />
+        )}
+      </div>
+    </BrowserRouter>
   );
 }
 
