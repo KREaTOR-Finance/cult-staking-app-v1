@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Client } from 'xrpl';
+import * as XRPLService from '../services/XRPLService';
 import { useXRPL } from './useXRPL';
 import { useXaman } from './useXaman';
 import { STAKING_CONFIG } from '../config';
@@ -9,7 +10,7 @@ const STAKING_CONTRACT = process.env.REACT_APP_STAKING_CONTRACT;
 
 export const useStaking = () => {
     const { fetchNFTs, fetchStakedNFTs, fetchStats } = useXRPL();
-    const { walletAddress } = useXaman();
+    const { walletAddress, signTransaction } = useXaman();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [stakingInfo, setStakingInfo] = useState({
@@ -75,15 +76,10 @@ export const useStaking = () => {
     const stakeNFT = useCallback(async (nftId) => {
         setLoading(true);
         setError(null);
-        let client = null;
         
         try {
-            client = new Client(XRPL_NODE);
+            const client = new Client(XRPL_NODE);
             await client.connect();
-
-            if (!client.isConnected()) {
-                throw new Error('Failed to connect to XRPL');
-            }
 
             // Create NFT offer to the staking contract
             const tx = {
@@ -105,18 +101,14 @@ export const useStaking = () => {
                     fetchStakedNFTs(walletAddress),
                     fetchStats(walletAddress)
                 ]);
-                return true;
-            } else {
-                throw new Error(`Transaction failed: ${result.result.meta.TransactionResult}`);
             }
+
+            await client.disconnect();
+            return result.result.meta.TransactionResult === 'tesSUCCESS';
         } catch (err) {
-            console.error('Staking error:', err);
-            setError('Failed to stake NFT: ' + (err.message || 'Unknown error'));
+            setError('Failed to stake NFT: ' + err.message);
             return false;
         } finally {
-            if (client && client.isConnected()) {
-                await client.disconnect();
-            }
             setLoading(false);
         }
     }, [fetchNFTs, fetchStakedNFTs, fetchStats, walletAddress]);
@@ -124,18 +116,13 @@ export const useStaking = () => {
     const unstakeNFT = useCallback(async (nftId, stakedDate, isInnerCircle) => {
         setLoading(true);
         setError(null);
-        let client = null;
 
         try {
             // Check staking info before unstaking
             const { penalty } = await updateStakingInfo(nftId, stakedDate, isInnerCircle);
             
-            client = new Client(XRPL_NODE);
+            const client = new Client(XRPL_NODE);
             await client.connect();
-
-            if (!client.isConnected()) {
-                throw new Error('Failed to connect to XRPL');
-            }
 
             // Create unstake transaction
             const tx = {
@@ -157,18 +144,14 @@ export const useStaking = () => {
                     fetchStakedNFTs(walletAddress),
                     fetchStats(walletAddress)
                 ]);
-                return true;
-            } else {
-                throw new Error(`Transaction failed: ${result.result.meta.TransactionResult}`);
             }
+
+            await client.disconnect();
+            return result.result.meta.TransactionResult === 'tesSUCCESS';
         } catch (err) {
-            console.error('Unstaking error:', err);
-            setError('Failed to unstake NFT: ' + (err.message || 'Unknown error'));
+            setError('Failed to unstake NFT: ' + err.message);
             return false;
         } finally {
-            if (client && client.isConnected()) {
-                await client.disconnect();
-            }
             setLoading(false);
         }
     }, [fetchNFTs, fetchStakedNFTs, fetchStats, walletAddress, updateStakingInfo]);

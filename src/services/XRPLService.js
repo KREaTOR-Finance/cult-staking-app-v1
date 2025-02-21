@@ -5,261 +5,85 @@ const XRPL_NODE = process.env.REACT_APP_XRPL_MAINNET_URL || 'wss://xrplcluster.c
 const STAKING_CONTRACT = process.env.REACT_APP_STAKING_CONTRACT;
 const CULT_TOKEN_ISSUER = process.env.REACT_APP_CULT_TOKEN_ISSUER;
 
-// Base CULT NFT contract addresses
-const CULT_NFT_BASE_CONTRACTS = [
-    '000A17700C185B42735B06E248D5FC91',
-    '0394A02969086D03'
-];
-
 let client = null;
-let connectionPromise = null;
 
-const handleConnectionError = (error) => {
-    console.error('XRPL connection error:', error);
-    client = null;
-    connectionPromise = null;
-};
-
-const createClient = () => {
-    if (client) {
+const getClient = () => {
+    if (client) return client;
+    
+    console.log('XRPL_CONFIG:', XRPL_CONFIG);
+    console.log('NETWORK:', XRPL_CONFIG.NETWORK);
+    
+    const network = XRPL_CONFIG.NETWORK;
+    console.log('network:', network);
+    
+    const config = XRPL_CONFIG[network];
+    console.log('network config:', config);
+    
+    if (!config || !config.wsUrl) {
+        console.error('Invalid XRPL network configuration');
+        console.log('Falling back to MAINNET config:', XRPL_CONFIG.MAINNET);
+        client = new Client(XRPL_CONFIG.MAINNET.wsUrl);
         return client;
     }
-
-    client = new Client(XRPL_NODE);
     
-    // Add error handlers
-    client.on('error', handleConnectionError);
-    client.on('disconnected', () => {
-        console.log('XRPL client disconnected');
-        client = null;
-        connectionPromise = null;
-    });
-    
+    client = new Client(config.wsUrl);
     return client;
 };
 
 export const connectToXRPL = async () => {
     try {
-        // If we're already connecting, return the existing promise
-        if (connectionPromise) {
-            return connectionPromise;
-        }
-
-        // If we're already connected, return true
         if (client && client.isConnected()) {
             return true;
         }
-
-        // Create new client if needed
-        if (!client) {
-            client = createClient();
-        }
-
-        // Create and store the connection promise
-        connectionPromise = client.connect().then(() => {
-            connectionPromise = null;
-            return true;
-        }).catch(error => {
-            console.error('Failed to connect to XRPL:', error);
-            client = null;
-            connectionPromise = null;
-            return false;
-        });
-
-        return connectionPromise;
+        client = new Client(XRPL_NODE);
+        await client.connect();
+        return true;
     } catch (error) {
-        console.error('Error in connectToXRPL:', error);
-        client = null;
-        connectionPromise = null;
+        console.error('Failed to connect to XRPL:', error);
         return false;
     }
 };
 
 export const disconnectFromXRPL = async () => {
     try {
-        if (client) {
-            client.removeAllListeners();
-            if (client.isConnected()) {
-                await client.disconnect();
-            }
+        if (client && client.isConnected()) {
+            await client.disconnect();
         }
-    } catch (error) {
-        console.error('Error disconnecting from XRPL:', error);
-    } finally {
         client = null;
-        connectionPromise = null;
-    }
-};
-
-const ensureConnection = async () => {
-    if (!client || !client.isConnected()) {
-        const connected = await connectToXRPL();
-        if (!connected) {
-            throw new Error('Failed to connect to XRPL');
-        }
-    }
-    return client;
-};
-
-// Helper function to decode hex to string
-const hexToString = (hex) => {
-    let str = '';
-    for (let i = 0; i < hex.length; i += 2) {
-        str += String.fromCharCode(parseInt(hex.substr(i, 2), 16));
-    }
-    return str;
-};
-
-// Helper function to process NFT URI
-const processNFTUri = (uri) => {
-    if (!uri) return '';
-    
-    // If it's already a valid URL, return it
-    if (uri.startsWith('http') || uri.startsWith('ipfs')) {
-        return uri;
-    }
-
-    // If it's hex, convert it
-    try {
-        const decoded = hexToString(uri);
-        if (decoded.startsWith('ipfs://')) {
-            return `https://ipfs.io/ipfs/${decoded.replace('ipfs://', '')}`;
-        }
-        return decoded;
     } catch (error) {
-        console.error('Error processing NFT URI:', error);
-        return uri;
+        console.error('Failed to disconnect from XRPL:', error);
     }
-};
-
-const isCultNFT = (nftId) => {
-    // Check if NFT ID starts with any of the base contract addresses
-    const isMatch = CULT_NFT_BASE_CONTRACTS.some(contract => nftId.startsWith(contract));
-    console.log('Checking NFT:', nftId, 'isMatch:', isMatch);
-    return isMatch;
 };
 
 export const fetchUserNFTs = async (walletAddress) => {
     try {
-        console.log('Fetching NFTs for wallet:', walletAddress);
-        const client = await ensureConnection();
+        if (!client || !client.isConnected()) {
+            await connectToXRPL();
+        }
+
         const nfts = await client.request({
             command: 'account_nfts',
             account: walletAddress
         });
 
-        console.log('Raw NFTs response:', nfts.result.account_nfts);
-
-        // Filter and map only CULT NFTs
-        const cultNFTs = nfts.result.account_nfts
-            .filter(nft => isCultNFT(nft.NFTokenID))
-            .map(nft => {
-                const processed = {
-                    id: nft.NFTokenID,
-                    name: `CULT NFT #${nft.NFTokenID.slice(-4)}`,
-                    image: processNFTUri(nft.URI),
-                    isInnerCircle: nft.Flags === 1,
-                    taxon: nft.NFTokenTaxon,
-                    issuer: nft.Issuer,
-                    flags: nft.Flags,
-                    transferFee: nft.TransferFee,
-                    sequence: nft.Sequence,
-                    uri: nft.URI
-                };
-                console.log('Processed NFT:', processed);
-                return processed;
-            });
-
-        console.log('Filtered CULT NFTs:', cultNFTs);
-        return cultNFTs;
+        return nfts.result.account_nfts.map(nft => ({
+            id: nft.NFTokenID,
+            name: `CULT NFT #${nft.NFTokenID.slice(-4)}`,
+            image: `${process.env.REACT_APP_IPFS_GATEWAY}/${nft.URI}`,
+            isInnerCircle: nft.Flags === 1
+        }));
     } catch (error) {
         console.error('Failed to fetch user NFTs:', error);
         return [];
     }
 };
 
-// Add a new function to get detailed NFT info
-export const getNFTDetails = async (nftId) => {
-    try {
-        const client = await ensureConnection();
-        const response = await client.request({
-            command: 'nft_info',
-            nft_id: nftId
-        });
-
-        return {
-            id: nftId,
-            name: `CULT NFT #${nftId.slice(-4)}`,
-            image: processNFTUri(response.result.URI),
-            isInnerCircle: response.result.Flags === 1,
-            taxon: response.result.NFTokenTaxon,
-            issuer: response.result.Issuer,
-            owner: response.result.Owner,
-            flags: response.result.Flags,
-            transferFee: response.result.TransferFee,
-            sequence: response.result.Sequence,
-            uri: response.result.URI // Keep the original URI for reference
-        };
-    } catch (error) {
-        console.error('Failed to fetch NFT details:', error);
-        return null;
-    }
-};
-
-// Add a function to fetch all CULT NFTs for a wallet
-export const fetchAllCultNFTs = async (walletAddress) => {
-    try {
-        console.log('Fetching all CULT NFTs for wallet:', walletAddress);
-        const client = await ensureConnection();
-        let marker = undefined;
-        let allNFTs = [];
-
-        do {
-            console.log('Fetching batch with marker:', marker);
-            const response = await client.request({
-                command: 'account_nfts',
-                account: walletAddress,
-                limit: 400,
-                marker
-            });
-
-            console.log('Batch response:', response);
-
-            const cultNFTs = response.result.account_nfts
-                .filter(nft => isCultNFT(nft.NFTokenID))
-                .map(nft => {
-                    const processed = {
-                        id: nft.NFTokenID,
-                        name: `CULT NFT #${nft.NFTokenID.slice(-4)}`,
-                        image: processNFTUri(nft.URI),
-                        isInnerCircle: nft.Flags === 1,
-                        taxon: nft.NFTokenTaxon,
-                        issuer: nft.Issuer,
-                        flags: nft.Flags,
-                        transferFee: nft.TransferFee,
-                        sequence: nft.Sequence,
-                        uri: nft.URI
-                    };
-                    console.log('Processed CULT NFT:', processed);
-                    return processed;
-                });
-
-            allNFTs = [...allNFTs, ...cultNFTs];
-            marker = response.result.marker;
-            console.log('Batch added. Total NFTs:', allNFTs.length);
-        } while (marker);
-
-        console.log('Final CULT NFTs:', allNFTs);
-        return allNFTs;
-    } catch (error) {
-        console.error('Failed to fetch all CULT NFTs:', error);
-        return [];
-    }
-};
-
 export const fetchUserStakedNFTs = async (walletAddress) => {
     try {
-        const client = await ensureConnection();
+        if (!client || !client.isConnected()) {
+            await connectToXRPL();
+        }
+
         const response = await client.request({
             command: 'account_lines',
             account: STAKING_CONTRACT,
@@ -283,7 +107,9 @@ export const fetchUserStakedNFTs = async (walletAddress) => {
 
 export const fetchUserStats = async (walletAddress) => {
     try {
-        const client = await ensureConnection();
+        if (!client || !client.isConnected()) {
+            await connectToXRPL();
+        }
 
         // Fetch user's staked NFTs
         const stakedNFTs = await fetchUserStakedNFTs(walletAddress);
@@ -327,7 +153,10 @@ export const fetchUserStats = async (walletAddress) => {
 
 export const fetchTopStakers = async (timeframe = 'all') => {
     try {
-        const client = await ensureConnection();
+        if (!client || !client.isConnected()) {
+            await connectToXRPL();
+        }
+
         const response = await client.request({
             command: 'account_lines',
             account: STAKING_CONTRACT,
@@ -360,7 +189,10 @@ export const fetchTopStakers = async (timeframe = 'all') => {
 
 export const updateUserPFP = async (walletAddress, nftId) => {
     try {
-        const client = await ensureConnection();
+        if (!client || !client.isConnected()) {
+            await connectToXRPL();
+        }
+
         // This would typically involve a transaction to update user preferences
         // For now, we'll just return true to simulate success
         return true;
@@ -386,8 +218,8 @@ const calculateStakingRank = async (walletAddress) => {
 };
 
 export const stakeNFT = async (walletAddress, nftId) => {
+    const client = getClient();
     try {
-        const client = await ensureConnection();
         const tx = {
             TransactionType: 'NFTokenCreateOffer',
             Account: walletAddress,
@@ -406,8 +238,8 @@ export const stakeNFT = async (walletAddress, nftId) => {
 };
 
 export const unstakeNFT = async (walletAddress, nftId) => {
+    const client = getClient();
     try {
-        const client = await ensureConnection();
         const tx = {
             TransactionType: 'NFTokenAcceptOffer',
             Account: STAKING_CONFIG.CONTRACT_ADDRESS,

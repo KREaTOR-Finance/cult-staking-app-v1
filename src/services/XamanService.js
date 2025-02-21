@@ -1,5 +1,3 @@
-import { Xumm } from 'xumm-sdk';
-
 // Transaction status constants
 export const TX_STATUS = {
   CREATED: 'created',
@@ -13,8 +11,6 @@ export const TX_STATUS = {
 };
 
 const BACKEND_URL = 'http://localhost:4000/api';
-const XUMM_API_KEY = process.env.REACT_APP_XUMM_API_KEY;
-const xumm = new Xumm(XUMM_API_KEY);
 
 class XamanService {
   constructor() {
@@ -28,10 +24,6 @@ class XamanService {
       wsUrl: 'wss://xrplcluster.com',
       explorer: 'https://livenet.xrpl.org'
     };
-
-    this.currentPayload = null;
-    this.connected = false;
-    this.address = null;
   }
 
   // Event handling methods
@@ -56,38 +48,52 @@ class XamanService {
     }
   }
 
-  async connect() {
+  async createSignRequest() {
     try {
-      // Create sign request
-      const payload = await xumm.payload.create({
-        TransactionType: 'SignIn',
-        options: {
-          return_url: {
-            app: window.location.href,
-            web: window.location.href
+      const response = await fetch(`${BACKEND_URL}/xaman/sign-request`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          txjson: {
+            TransactionType: 'SignIn'
+          },
+          options: {
+            expire: 5 * 60,
+            return_url: {
+              app: `${window.location.origin}?signed=true`,
+              web: `${window.location.origin}?signed=true`
+            },
+            submit: true,
+            multisign: false,
+            signerAccount: null
           }
-        }
+        })
       });
 
-      this.currentPayload = payload;
-
-      // If on mobile, redirect to Xaman app
-      if (this.isMobileDevice()) {
-        window.location.href = payload.next.always;
-        return {
-          success: true,
-          deepLink: payload.next.always
-        };
+      if (!response.ok) {
+        throw new Error('Failed to create sign request');
       }
 
-      // Otherwise return QR data for desktop
+      const data = await response.json();
+
+      if (!data || !data.uuid) {
+        throw new Error('Invalid sign request response');
+      }
+
+      // Store the payload ID and timestamp
+      localStorage.setItem('xaman_payload_id', data.uuid);
+      localStorage.setItem('xaman_connection_timestamp', Date.now().toString());
+
       return {
         success: true,
-        qrUrl: payload.refs.qr_png,
-        payloadId: payload.uuid
+        qrUrl: data.refs.qr_png,
+        payloadId: data.uuid,
+        deepLink: data.next.always
       };
     } catch (error) {
-      console.error('Failed to create Xaman connection request:', error);
+      console.error('Sign request creation failed:', error);
       return {
         success: false,
         error: error.message
@@ -97,22 +103,23 @@ class XamanService {
 
   async getPayloadStatus(payloadId) {
     try {
-      const payload = await xumm.payload.get(payloadId);
-      
-      if (payload.meta.resolved) {
-        if (payload.response.account) {
-          this.connected = true;
-          this.address = payload.response.account;
-          return {
-            success: true,
-            account: payload.response.account
-          };
-        }
+      const response = await fetch(`${BACKEND_URL}/xaman/payload/${payloadId}`);
+      if (!response.ok) {
+        throw new Error('Failed to get payload status');
       }
-      
+      const data = await response.json();
+
+      // If signed, store the account
+      if (data?.meta?.signed && data?.response?.account) {
+        localStorage.setItem('xaman_account', data.response.account);
+      }
+
       return {
-        success: false,
-        error: 'Payload not resolved'
+        success: true,
+        isSigned: data?.meta?.signed || false,
+        isPending: !data?.meta?.signed,
+        txHash: data?.response?.txid || null,
+        account: data?.response?.account || null
       };
     } catch (error) {
       console.error('Failed to get payload status:', error);
@@ -154,37 +161,54 @@ class XamanService {
   }
 
   getAccountUrl(address) {
-    return `https://xrpscan.com/account/${address}`;
+    return `https://xrpl.org/accounts/${address}`;
   }
 
   async getConnectedAddress() {
-    if (this.connected && this.address) {
-      return this.address;
+    try {
+      // First check if we have a stored account
+      const storedAccount = localStorage.getItem('xaman_account');
+      
+      // Check if connection is still valid (within 24 hours)
+      const timestamp = localStorage.getItem('xaman_connection_timestamp');
+      if (timestamp && storedAccount) {
+        const elapsed = Date.now() - parseInt(timestamp);
+        if (elapsed > 24 * 60 * 60 * 1000) {
+          await this.disconnect();
+          return null;
+        }
+        return storedAccount;
+      }
+
+      const payloadId = localStorage.getItem('xaman_payload_id');
+      if (!payloadId) return null;
+
+      const status = await this.getPayloadStatus(payloadId);
+      if (!status.success || !status.account) {
+        await this.disconnect();
+        return null;
+      }
+
+      // Update timestamp and store account
+      localStorage.setItem('xaman_connection_timestamp', Date.now().toString());
+      localStorage.setItem('xaman_account', status.account);
+      return status.account;
+    } catch (error) {
+      console.error('Failed to get connected address:', error);
+      await this.disconnect();
+      return null;
     }
-    return null;
   }
 
   async disconnect() {
-    this.connected = false;
-    this.address = null;
-    this.currentPayload = null;
+    localStorage.removeItem('xaman_payload_id');
+    localStorage.removeItem('xaman_connection_timestamp');
+    localStorage.removeItem('xaman_account');
     
     // Clear all subscriptions
     this.cleanup();
     
     return true;
-  }
-
-  // Helper method to check if the app is running on mobile
-  isMobileDevice() {
-    return /android|iphone|ipad|ipod/i.test(
-      navigator.userAgent.toLowerCase()
-    );
-  }
-
-  // Get the appropriate connection method based on device
-  getConnectionMethod() {
-    return this.isMobileDevice() ? 'deeplink' : 'qr';
   }
 }
 

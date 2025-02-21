@@ -17,10 +17,10 @@ function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
-  const showNotification = useCallback((message, type = 'info') => {
+  const showNotification = (message, type = 'info') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 5000);
-  }, []);
+  };
 
   const checkWalletConnection = useCallback(async () => {
     try {
@@ -39,56 +39,34 @@ function App() {
   }, [walletAddress, showNotification]);
 
   useEffect(() => {
-    let mounted = true;
-    
     const init = async () => {
       try {
-        // Initialize XRPL connection with retries
-        let retries = 3;
-        let connected = false;
-        
-        while (retries > 0 && !connected && mounted) {
-          try {
-            connected = await connectToXRPL();
-            if (connected) break;
-          } catch (err) {
-            console.error('XRPL connection attempt failed:', err);
-            retries--;
-            if (retries > 0) {
-              await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s between retries
-            }
-          }
-        }
-
-        if (!connected && mounted) {
-          showNotification('Failed to connect to XRPL network. Please refresh the page.', 'error');
+        // Initialize XRPL connection
+        const connected = await connectToXRPL();
+        if (!connected) {
+          showNotification('Failed to connect to XRPL', 'error');
           return;
         }
 
         // Check URL parameters for connection status
         const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('signed') === 'true' && mounted) {
+        if (urlParams.get('signed') === 'true') {
           await checkWalletConnection();
-        } else if (mounted) {
+        } else {
           // Only check for existing connection if not coming from sign flow
           await checkWalletConnection();
         }
       } catch (error) {
         console.error('Initialization error:', error);
-        if (mounted) {
-          showNotification('Failed to initialize app: ' + (error.message || 'Unknown error'), 'error');
-        }
+        showNotification('Failed to initialize app', 'error');
       } finally {
-        if (mounted) {
-          setIsInitializing(false);
-        }
+        setIsInitializing(false);
       }
     };
 
     init();
 
     return () => {
-      mounted = false;
       disconnectFromXRPL();
     };
   }, [checkWalletConnection, showNotification]);
@@ -144,16 +122,6 @@ function App() {
   const getProfileInitial = (address) => {
     return address ? address.charAt(0).toUpperCase() : '?';
   };
-
-  // Update the backend API URL based on environment
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'production') {
-      // Update this to your Render backend URL
-      window.BACKEND_URL = 'https://cult-staking-backend.onrender.com';
-    } else {
-      window.BACKEND_URL = 'http://localhost:3000';
-    }
-  }, []);
 
   if (isInitializing) {
     return (
