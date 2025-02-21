@@ -1,13 +1,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import xamanService from '../services/XamanService';
 
 const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
+  const navigate = useNavigate();
   const [isConnecting, setIsConnecting] = useState(false);
   const [qrCode, setQrCode] = useState(null);
   const [deepLink, setDeepLink] = useState(null);
   const [error, setError] = useState(null);
   const [isMobile] = useState(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
   const [payloadId, setPayloadId] = useState(null);
+  const [appStoreLink, setAppStoreLink] = useState(null);
+  const [debugLogs, setDebugLogs] = useState([]);
+
+  // Helper function to add debug logs
+  const addDebugLog = useCallback((message) => {
+    console.log(message);
+    setDebugLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
+  }, []); // Empty dependency array since setDebugLogs is stable
 
   // Check existing connection
   const checkConnection = useCallback(async () => {
@@ -15,6 +25,7 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
       const address = await xamanService.getConnectedAddress();
       if (address) {
         onConnect(address);
+        navigate('/dashboard');
         return true;
       }
       return false;
@@ -22,39 +33,73 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
       console.error('❌ Connection check failed:', err);
       return false;
     }
-  }, [onConnect]);
+  }, [onConnect, navigate]);
 
   // Handle redirect after mobile sign
   const handleRedirect = useCallback(async () => {
-    if (payloadId) {
+    // First check if we have a payload ID either from state or localStorage
+    const currentPayloadId = payloadId || localStorage.getItem('xaman_payload_id');
+    
+    if (currentPayloadId) {
       try {
-        const status = await xamanService.getPayloadStatus(payloadId);
-        if (status.success && status.account) {
-          onConnect(status.account);
-          setQrCode(null);
-          setDeepLink(null);
-          setPayloadId(null);
+        addDebugLog(`Checking payload status after return. PayloadID: ${currentPayloadId}`);
+        addDebugLog(`Current URL: ${window.location.href}`);
+        
+        const status = await xamanService.getPayloadStatus(currentPayloadId);
+        addDebugLog(`Return status: ${JSON.stringify(status, null, 2)}`);
+        
+        if (status.success) {
+          if (status.account) {
+            addDebugLog(`Successfully connected with account: ${status.account}`);
+            onConnect(status.account);
+            
+            // Clear all states and storage after successful connection
+            setQrCode(null);
+            setDeepLink(null);
+            setPayloadId(null);
+            setAppStoreLink(null);
+            setDebugLogs([]);
+            localStorage.removeItem('xaman_payload_id');
+            
+            // Navigate using React Router
+            navigate('/dashboard');
+          } else {
+            addDebugLog('Account not yet signed, waiting for signature...');
+          }
+        } else {
+          addDebugLog(`Invalid status response: ${JSON.stringify(status, null, 2)}`);
         }
       } catch (err) {
         console.error('❌ Redirect handling failed:', err);
+        addDebugLog(`Redirect error: ${err.message}`);
+        // Clear payload on error to prevent loops
+        localStorage.removeItem('xaman_payload_id');
+        setPayloadId(null);
       }
+    } else {
+      addDebugLog('No payload ID found for status check');
     }
-  }, [payloadId, onConnect]);
+  }, [payloadId, onConnect, addDebugLog, navigate]);
 
   useEffect(() => {
     // Check for signed=true in URL params
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('signed') === 'true') {
-      handleRedirect();
-      // Clean up the URL
+    const isSignedReturn = urlParams.get('signed') === 'true';
+    
+    if (isSignedReturn) {
+      addDebugLog('Detected signed=true in URL, handling return...');
+      // Clean up the URL first to prevent loops
       window.history.replaceState({}, document.title, window.location.pathname);
+      handleRedirect();
     } else {
+      addDebugLog('No signed parameter, checking existing connection...');
       checkConnection();
     }
 
     // Handle page visibility changes (for mobile app returns)
     const handleVisibilityChange = () => {
       if (!document.hidden) {
+        addDebugLog('Page became visible, checking connection status...');
         handleRedirect();
       }
     };
@@ -66,44 +111,51 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleRedirect);
     };
-  }, [checkConnection, handleRedirect]);
+  }, [checkConnection, handleRedirect, addDebugLog, navigate]);
 
   const connectWallet = async () => {
+    // Don't create a new sign request if we're already connecting
+    if (isConnecting || payloadId) {
+      addDebugLog('Already connecting or have an active payload, skipping...');
+      return;
+    }
+
     try {
       setIsConnecting(true);
       setError(null);
+      setAppStoreLink(null);
+      setDebugLogs([]); // Clear previous logs
 
+      addDebugLog('Creating sign request...');
       const signRequest = await xamanService.createSignRequest();
+      addDebugLog(`Sign request created: ${JSON.stringify(signRequest, null, 2)}`);
 
       if (!signRequest.success) {
         throw new Error(signRequest.error || 'Failed to create sign request');
       }
 
-      setQrCode(signRequest.qrUrl);
-      setDeepLink(signRequest.deepLink);
       setPayloadId(signRequest.payloadId);
-
-      if (isMobile && signRequest.deepLink) {
-        // Store payload ID before redirect
-        localStorage.setItem('xaman_pending_payload', signRequest.payloadId);
-        window.location.href = signRequest.deepLink;
-      }
+      addDebugLog(`Payload ID set: ${signRequest.payloadId}`);
 
       // Start polling for payload status
       const pollInterval = setInterval(async () => {
         try {
           const status = await xamanService.getPayloadStatus(signRequest.payloadId);
+          addDebugLog(`Poll status: ${JSON.stringify(status)}`);
           if (status.success && status.account) {
             clearInterval(pollInterval);
             onConnect(status.account);
             setQrCode(null);
             setDeepLink(null);
             setPayloadId(null);
+            setAppStoreLink(null);
+            // Navigate using React Router
+            navigate('/dashboard');
           }
         } catch (error) {
-          console.error('Failed to check payload status:', error);
+          addDebugLog(`Poll error: ${error.message}`);
         }
-      }, 2000); // Check every 2 seconds
+      }, 2000);
 
       // Clear polling after 5 minutes
       setTimeout(() => {
@@ -113,10 +165,24 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
           setQrCode(null);
           setDeepLink(null);
           setPayloadId(null);
+          setAppStoreLink(null);
         }
       }, 5 * 60 * 1000);
+
+      if (isMobile) {
+        if (!signRequest.deepLink) {
+          throw new Error('No deep link available from API');
+        }
+        
+        addDebugLog(`Opening mobile deep link: ${signRequest.deepLink}`);
+        window.location.href = signRequest.deepLink;
+      } else {
+        // Desktop flow with QR code
+        setQrCode(signRequest.qrUrl);
+        setDeepLink(signRequest.deepLink);
+      }
     } catch (error) {
-      console.error('❌ Wallet connection failed:', error);
+      addDebugLog(`Error: ${error.message}`);
       setError(error.message);
     } finally {
       setIsConnecting(false);
@@ -131,6 +197,7 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
       setDeepLink(null);
       setPayloadId(null);
       setError(null);
+      setAppStoreLink(null);
     } catch (error) {
       console.error('❌ Wallet disconnect failed:', error);
       setError('Failed to disconnect wallet');
@@ -149,7 +216,33 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
         Connect your XRP wallet to start staking your NFTs and tokens.
       </p>
       
-      {!walletAddress && !qrCode && (
+      {/* Debug logs section for mobile */}
+      {isMobile && debugLogs.length > 0 && (
+        <div className="debug-logs" style={{
+          marginTop: '20px',
+          padding: '10px',
+          backgroundColor: '#1a1a1a',
+          borderRadius: '4px',
+          maxHeight: '200px',
+          overflowY: 'auto',
+          fontSize: '12px',
+          fontFamily: 'monospace'
+        }}>
+          <h4 style={{ marginBottom: '10px', color: '#ffd700' }}>Debug Logs:</h4>
+          {debugLogs.map((log, index) => (
+            <div key={index} style={{ 
+              borderBottom: '1px solid #333',
+              padding: '5px 0',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all'
+            }}>
+              {log}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!walletAddress && !qrCode && !appStoreLink && (
         <div className="info-box">
           <h4>Getting Started</h4>
           <p>To participate in staking, you'll need:</p>
@@ -164,6 +257,26 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
       {error && (
         <div className="error-message">
           <i className="fas fa-exclamation-circle"></i> {error}
+        </div>
+      )}
+
+      {appStoreLink && (
+        <div className="app-store-prompt">
+          <p>Install Xaman Wallet to continue</p>
+          <a 
+            href={appStoreLink}
+            className="app-store-button"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Download Xaman
+          </a>
+          <button 
+            onClick={() => setAppStoreLink(null)} 
+            className="retry-button"
+          >
+            I've installed Xaman
+          </button>
         </div>
       )}
 
@@ -210,7 +323,7 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
           >
             {isConnecting ? 'Connecting...' : 'Connect with Xaman'}
           </button>
-          {!isMobile && (
+          {!isMobile && !appStoreLink && (
             <div className="help-links">
               <a 
                 href="https://xaman.app" 

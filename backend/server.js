@@ -18,6 +18,16 @@ const XAMAN_BASE_URL = 'https://xumm.app/api/v1';
  */
 app.post('/api/xaman/sign-request', async (req, res) => {
     try {
+        // Check if API keys are configured
+        if (!XAMAN_API_KEY || !XAMAN_API_SECRET) {
+            console.error('Xaman API keys not configured');
+            return res.status(500).json({ 
+                error: 'Xaman API keys not configured. Please check backend environment variables.' 
+            });
+        }
+
+        console.log('Making request to Xaman API with body:', JSON.stringify(req.body, null, 2));
+        
         const response = await axios.post(
             `${XAMAN_BASE_URL}/platform/payload`,
             req.body,
@@ -29,10 +39,21 @@ app.post('/api/xaman/sign-request', async (req, res) => {
                 }
             }
         );
+        
+        console.log('Xaman API Response:', response.data);
         res.json(response.data);
     } catch (error) {
-        console.error('Xaman API Error:', error.response?.data || error.message);
-        res.status(500).json({ error: 'Xaman API request failed.' });
+        console.error('Xaman API Error:', {
+            status: error.response?.status,
+            data: error.response?.data,
+            message: error.message
+        });
+        
+        // Send more detailed error information
+        res.status(500).json({ 
+            error: error.response?.data?.error || error.message,
+            details: error.response?.data
+        });
     }
 });
 

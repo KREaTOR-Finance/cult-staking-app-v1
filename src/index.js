@@ -1,7 +1,12 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
 import './styles/app.css';
+import App from './App';
+
+// Prevent window.ethereum errors from MetaMask or other Ethereum wallets
+if (typeof window.ethereum === 'undefined') {
+  window.ethereum = null;
+}
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

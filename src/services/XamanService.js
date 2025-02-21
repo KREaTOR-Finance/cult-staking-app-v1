@@ -10,7 +10,19 @@ export const TX_STATUS = {
   REJECTED: 'rejected'
 };
 
-const BACKEND_URL = 'http://localhost:4000/api';
+// Environment-specific backend URL
+const BACKEND_URL = window.location.hostname === 'kreator-finance.github.io' 
+  ? 'https://cult-staking-app-v1.onrender.com/api'
+  : window.location.hostname === 'localhost'
+    ? 'http://localhost:4000/api'
+    : `http://${window.location.hostname}:4000/api`;
+
+// Log environment info for debugging
+console.log('Environment:', {
+  hostname: window.location.hostname,
+  backendUrl: BACKEND_URL,
+  isGitHubPages: window.location.hostname === 'kreator-finance.github.io'
+});
 
 class XamanService {
   constructor() {
@@ -21,9 +33,19 @@ class XamanService {
     
     // XRPL configuration
     this.xrplConfig = {
-      wsUrl: 'wss://xrplcluster.com',
-      explorer: 'https://livenet.xrpl.org'
+      wsUrl: process.env.REACT_APP_XRPL_MAINNET_URL || 'wss://xrplcluster.com',
+      explorer: process.env.REACT_APP_XRPL_MAINNET_EXPLORER || 'https://livenet.xrpl.org'
     };
+
+    // Log XRPL config for debugging
+    console.log('XRPL Config:', {
+      network: process.env.REACT_APP_XRPL_NETWORK,
+      wsUrl: this.xrplConfig.wsUrl,
+      explorer: this.xrplConfig.explorer
+    });
+
+    // Mobile detection
+    this.isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   }
 
   // Event handling methods
@@ -48,37 +70,99 @@ class XamanService {
     }
   }
 
+  isXamanInstalled() {
+    return new Promise((resolve) => {
+      if (!this.isMobile) {
+        resolve(false);
+        return;
+      }
+
+      // Try to open Xaman using a more reliable deep link
+      const testUrl = 'xumm://xumm.app/detect';
+      
+      // Store the initial visibility state
+      const initialVisibility = document.visibilityState;
+      
+      const timeout = setTimeout(() => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        // If we're still on the same visibility state, Xaman didn't open
+        if (document.visibilityState === initialVisibility) {
+          resolve(false);
+        }
+      }, 1500); // Increased timeout for slower devices
+
+      const handleVisibilityChange = () => {
+        clearTimeout(timeout);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        resolve(true);
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      
+      // Try to open Xaman
+      window.location.href = testUrl;
+    });
+  }
+
+  getAppStoreLink() {
+    const userAgent = navigator.userAgent.toLowerCase();
+    if (userAgent.includes('iphone') || userAgent.includes('ipad')) {
+      return 'https://apps.apple.com/app/xaman-xumm-wallet/id1492302343';
+    }
+    return 'https://play.google.com/store/apps/details?id=com.xrpllabs.xumm';
+  }
+
   async createSignRequest() {
     try {
+      console.log('Making API request to:', `${BACKEND_URL}/xaman/sign-request`);
+      
+      // Construct return URLs with proper path and origin
+      const returnUrl = new URL(window.location.href);
+      // Clear any existing parameters but keep the path
+      returnUrl.search = '?signed=true';
+      
+      console.log('Constructed return URL:', returnUrl.toString());
+      
+      const requestBody = {
+        txjson: {
+          TransactionType: 'SignIn',
+          SignIn: true
+        },
+        options: {
+          expire: 5 * 60,
+          return_url: {
+            app: returnUrl.toString(),
+            web: returnUrl.toString()
+          },
+          submit: true,
+          forceType: this.isMobile ? 'app' : 'web'
+        }
+      };
+
+      console.log('Full request body:', JSON.stringify(requestBody, null, 2));
+
       const response = await fetch(`${BACKEND_URL}/xaman/sign-request`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          txjson: {
-            TransactionType: 'SignIn'
-          },
-          options: {
-            expire: 5 * 60,
-            return_url: {
-              app: `${window.location.origin}?signed=true`,
-              web: `${window.location.origin}?signed=true`
-            },
-            submit: true,
-            multisign: false,
-            signerAccount: null
-          }
-        })
+        body: JSON.stringify(requestBody)
       });
 
+      console.log('Response status:', response.status);
+      
       if (!response.ok) {
-        throw new Error('Failed to create sign request');
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        throw new Error(`API request failed: ${response.status} ${errorText}`);
       }
 
       const data = await response.json();
+      console.log('API Response data:', data);
+      console.log('Deep link from API:', data.next?.app || data.next?.always);
 
       if (!data || !data.uuid) {
+        console.error('Invalid API response:', data);
         throw new Error('Invalid sign request response');
       }
 
@@ -86,17 +170,21 @@ class XamanService {
       localStorage.setItem('xaman_payload_id', data.uuid);
       localStorage.setItem('xaman_connection_timestamp', Date.now().toString());
 
+      // For mobile, prefer the app-specific deep link if available
+      const deepLink = this.isMobile && data.next.app ? data.next.app : data.next.always;
+      console.log('Selected deep link:', deepLink);
+
       return {
         success: true,
         qrUrl: data.refs.qr_png,
         payloadId: data.uuid,
-        deepLink: data.next.always
+        deepLink
       };
     } catch (error) {
       console.error('Sign request creation failed:', error);
       return {
         success: false,
-        error: error.message
+        error: error.message || 'Failed to create sign request'
       };
     }
   }
