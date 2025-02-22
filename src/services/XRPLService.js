@@ -1,9 +1,17 @@
 import { Client } from 'xrpl';
-import { XRPL_CONFIG, STAKING_CONFIG } from '../config';
 
 const XRPL_NODE = process.env.REACT_APP_XRPL_MAINNET_URL || 'wss://xrplcluster.com';
 const STAKING_CONTRACT = process.env.REACT_APP_STAKING_CONTRACT;
 const CULT_TOKEN_ISSUER = process.env.REACT_APP_CULT_TOKEN_ISSUER;
+
+// Staking configuration
+const STAKING_CONFIG = {
+    CONTRACT_ADDRESS: STAKING_CONTRACT,
+    DAILY_EMISSION: process.env.REACT_APP_DAILY_EMISSION_YEAR_1 || 205479,
+    INNER_CIRCLE_BONUS: process.env.REACT_APP_INNER_CIRCLE_BONUS || 20,
+    EARLY_UNSTAKE_PENALTY: process.env.REACT_APP_EARLY_UNSTAKE_PENALTY || 25,
+    MIN_STAKE_DURATION: process.env.REACT_APP_MIN_STAKE_DURATION || 7
+};
 
 // Base CULT NFT contract addresses
 const CULT_NFT_BASE_CONTRACTS = [
@@ -178,34 +186,6 @@ export const fetchUserNFTs = async (walletAddress) => {
     }
 };
 
-// Add a new function to get detailed NFT info
-export const getNFTDetails = async (nftId) => {
-    try {
-        const client = await ensureConnection();
-        const response = await client.request({
-            command: 'nft_info',
-            nft_id: nftId
-        });
-
-        return {
-            id: nftId,
-            name: `CULT NFT #${nftId.slice(-4)}`,
-            image: processNFTUri(response.result.URI),
-            isInnerCircle: response.result.Flags === 1,
-            taxon: response.result.NFTokenTaxon,
-            issuer: response.result.Issuer,
-            owner: response.result.Owner,
-            flags: response.result.Flags,
-            transferFee: response.result.TransferFee,
-            sequence: response.result.Sequence,
-            uri: response.result.URI // Keep the original URI for reference
-        };
-    } catch (error) {
-        console.error('Failed to fetch NFT details:', error);
-        return null;
-    }
-};
-
 // Add a function to fetch all CULT NFTs for a wallet
 export const fetchAllCultNFTs = async (walletAddress) => {
     try {
@@ -249,11 +229,11 @@ export const fetchAllCultNFTs = async (walletAddress) => {
             console.log('Batch added. Total NFTs:', allNFTs.length);
         } while (marker);
 
-        console.log('Final CULT NFTs:', allNFTs);
+        console.log('All CULT NFTs fetched:', allNFTs);
         return allNFTs;
     } catch (error) {
         console.error('Failed to fetch all CULT NFTs:', error);
-        return [];
+        throw error;
     }
 };
 
@@ -370,7 +350,7 @@ export const updateUserPFP = async (walletAddress, nftId) => {
     }
 };
 
-// Helper functions
+// Helper functions for staking calculations
 const isInnerCircleNFT = (taxon) => {
     return taxon >= 1 && taxon <= 100;
 };

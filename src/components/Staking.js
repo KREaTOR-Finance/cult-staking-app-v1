@@ -1,14 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useXRPL } from '../hooks/useXRPL';
-import { useStaking } from '../hooks/useStaking';
-import { fetchAllCultNFTs, getNFTDetails } from '../services/XRPLService';
+import { fetchAllCultNFTs } from '../services/XRPLService';
 import '../styles/app.css';
 
 const Staking = ({ walletAddress }) => {
-    const { userNFTs, stakedNFTs, fetchNFTs, fetchStakedNFTs } = useXRPL();
-    const { stakeNFT, unstakeNFT, loading, error } = useStaking();
     const [cultNFTs, setCultNFTs] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     useEffect(() => {
         const loadNFTs = async () => {
@@ -32,8 +29,9 @@ const Staking = ({ walletAddress }) => {
                 });
                 
                 setCultNFTs(sortedNFTs);
-            } catch (error) {
-                console.error('Error loading NFTs:', error);
+            } catch (err) {
+                console.error('Error loading NFTs:', err);
+                setError('Failed to load NFTs. Please try again.');
             } finally {
                 setIsLoading(false);
             }
@@ -54,7 +52,7 @@ const Staking = ({ walletAddress }) => {
         );
     }
 
-    if (isLoading || loading) {
+    if (isLoading) {
         return (
             <div className="staking-container">
                 <div className="nft-list">
