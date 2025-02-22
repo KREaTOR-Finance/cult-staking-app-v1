@@ -1,0 +1,15 @@
+13463ca Fri Feb 21 20:04:30 2025 fix: improve GitHub Pages and Render communication
+edd6d70 Fri Feb 21 19:53:38 2025 fixes
+1c1631c Fri Feb 21 19:30:05 2025 Fix return URL construction for GitHub Pages
+8b83a05 Fri Feb 21 19:25:54 2025 Fix CORS for GitHub Pages full path
+dfce709 Fri Feb 21 19:11:52 2025 Mobile wallet connect enabled
+19adbf4 Fri Feb 21 16:14:34 2025 fix: always use Render backend URL to match production environment
+28bd9d9 Fri Feb 21 16:04:54 2025 feat: add render deployment config and improve backend server
+f248ce2 Fri Feb 21 15:02:36 2025 fix: Update CORS and backend URL configuration for mobile support
+1a7870a Fri Feb 21 14:31:35 2025 Fix: Add BrowserRouter for navigation
+34305b9 Fri Feb 21 14:24:58 2025 Fix: Production deployment config and mobile deep linking - Updated backend URL for GitHub Pages, fixed mobile deep linking, improved env detection and debug logging
+fc643f1 Fri Feb 21 00:24:05 2025 Revert "Update wallet connection flow with mobile deep linking support and improved UI"
+5caf090 Fri Feb 21 00:11:47 2025 Update wallet connection flow with mobile deep linking support and improved UI
+f0d4f1a Thu Feb 20 22:44:37 2025 Update UI styling and add Render backend configuration
+24ef1c2 Thu Feb 20 21:52:01 2025 Initial commit: Full stack Cult Staking application
+25f8567 Thu Feb 20 21:22:37 2025 Initial Heroku deployment

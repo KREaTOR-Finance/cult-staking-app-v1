@@ -59,6 +59,7 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
             setDebugLogs([]);
             localStorage.removeItem('xaman_payload_id');
             
+            // Navigate using hash for better compatibility
             navigate('#/dashboard');
           } else {
             addDebugLog('Account not yet signed, waiting for signature...');
@@ -84,7 +85,15 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
     
     if (isSignedReturn) {
       addDebugLog('Detected signed=true in URL, handling return...');
-      // Clean up the URL first to prevent loops
+      
+      // Get the payload ID from localStorage before cleaning up
+      const storedPayloadId = localStorage.getItem('xaman_payload_id');
+      if (storedPayloadId) {
+        addDebugLog(`Found stored payload ID: ${storedPayloadId}`);
+        setPayloadId(storedPayloadId);
+      }
+      
+      // Clean up the URL to prevent loops
       window.history.replaceState({}, document.title, window.location.pathname);
       handleRedirect();
     } else {
@@ -130,8 +139,10 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
         throw new Error(signRequest.error || 'Failed to create sign request');
       }
 
+      // Store payload ID in both state and localStorage
+      localStorage.setItem('xaman_payload_id', signRequest.payloadId);
       setPayloadId(signRequest.payloadId);
-      addDebugLog(`Payload ID set: ${signRequest.payloadId}`);
+      addDebugLog(`Payload ID set and stored: ${signRequest.payloadId}`);
 
       // Start polling for payload status
       const pollInterval = setInterval(async () => {
@@ -145,7 +156,7 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
             setDeepLink(null);
             setPayloadId(null);
             setAppStoreLink(null);
-            // Navigate using React Router
+            // Navigate using hash routing
             navigate('#/dashboard');
           }
         } catch (error) {

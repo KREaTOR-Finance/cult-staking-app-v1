@@ -1,0 +1,5 @@
+[33mdfce709[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m Mobile wallet connect enabled
+[33m19adbf4[m fix: always use Render backend URL to match production environment
+[33m28bd9d9[m feat: add render deployment config and improve backend server
+[33mf248ce2[m fix: Update CORS and backend URL configuration for mobile support
+[33m1a7870a[m Fix: Add BrowserRouter for navigation
