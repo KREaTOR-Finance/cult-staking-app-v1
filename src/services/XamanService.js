@@ -87,7 +87,7 @@ class XamanService {
         if (document.visibilityState === initialVisibility) {
           resolve(false);
         }
-      }, 1500); // Increased timeout for slower devices
+      }, 3000); // Increased timeout for slower devices/connections
 
       const handleVisibilityChange = () => {
         clearTimeout(timeout);
@@ -118,12 +118,27 @@ class XamanService {
         currentUrl: window.location.href
       });
       
+      // Clear any existing connection attempts
+      await this.disconnect();
+      
       // Construct return URLs with proper path and origin
       const returnUrl = new URL(window.location.href);
-      returnUrl.search = '?signed=true';
+      
+      // Handle local development URLs
+      let baseUrl;
+      if (returnUrl.hostname.includes('192.168.') || returnUrl.hostname.includes('localhost')) {
+        // For local development, use the current origin consistently
+        baseUrl = returnUrl.origin;
+      } else {
+        // For production, use the actual domain
+        baseUrl = returnUrl.origin;
+      }
+      
+      // Construct the return path
+      const returnPath = baseUrl + '/?signed=true#/dashboard';
       
       console.log('Sign request details:', {
-        returnUrl: returnUrl.toString(),
+        returnPath,
         isMobile: this.isMobile
       });
       
@@ -133,15 +148,30 @@ class XamanService {
           SignIn: true
         },
         options: {
-          expire: 5 * 60,
+          expire: 10 * 60,
           return_url: {
-            app: returnUrl.toString(),
-            web: returnUrl.toString()
+            app: returnPath,
+            web: returnPath
+          },
+          next: {
+            always: returnPath
           },
           submit: true,
-          forceType: this.isMobile ? 'app' : 'web'
+          forceType: this.isMobile ? 'app' : 'web',
+          // Add mobile specific options
+          mobile: {
+            return_url: {
+              app: returnPath,
+              web: returnPath
+            }
+          }
         }
       };
+
+      // For mobile, ensure consistent deep linking
+      if (this.isMobile) {
+        requestBody.options.next.app = returnPath;
+      }
 
       console.log('Request body:', JSON.stringify(requestBody, null, 2));
 
@@ -174,7 +204,8 @@ class XamanService {
         uuid: data.uuid,
         hasNext: !!data.next,
         hasQR: !!data.refs?.qr_png,
-        deepLink: data.next?.app || data.next?.always
+        nextUrls: data.next,
+        returnUrls: data.return_url
       });
 
       if (!data || !data.uuid) {
@@ -187,12 +218,12 @@ class XamanService {
       localStorage.setItem('xaman_connection_timestamp', Date.now().toString());
 
       // For mobile, prefer the app-specific deep link if available
-      const deepLink = this.isMobile && data.next.app ? data.next.app : data.next.always;
+      const deepLink = this.isMobile && data.next?.app ? data.next.app : data.next?.always;
       console.log('Selected deep link:', deepLink);
 
       return {
         success: true,
-        qrUrl: data.refs.qr_png,
+        qrUrl: data.refs?.qr_png,
         payloadId: data.uuid,
         deepLink
       };
@@ -207,14 +238,44 @@ class XamanService {
 
   async getPayloadStatus(payloadId) {
     try {
+      console.log('Checking payload status:', {
+        payloadId,
+        timestamp: new Date().toISOString()
+      });
+
       const response = await fetch(`${BACKEND_URL}/xaman/payload/${payloadId}`);
+      console.log('Payload status response:', {
+        status: response.status,
+        ok: response.ok,
+        statusText: response.statusText
+      });
+
       if (!response.ok) {
-        throw new Error('Failed to get payload status');
+        const errorText = await response.text();
+        console.error('Payload status error:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
+        throw new Error(`Failed to get payload status: ${response.status} ${errorText}`);
       }
+
       const data = await response.json();
+      console.log('Payload status data:', {
+        meta: data?.meta,
+        response: data?.response,
+        timestamp: new Date().toISOString()
+      });
+
+      // Validate the response data
+      if (!data || typeof data.meta?.signed === 'undefined') {
+        console.error('Invalid payload status response:', data);
+        throw new Error('Invalid payload status response format');
+      }
 
       // If signed, store the account
       if (data?.meta?.signed && data?.response?.account) {
+        console.log('Storing account from signed payload:', data.response.account);
         localStorage.setItem('xaman_account', data.response.account);
       }
 
@@ -223,13 +284,18 @@ class XamanService {
         isSigned: data?.meta?.signed || false,
         isPending: !data?.meta?.signed,
         txHash: data?.response?.txid || null,
-        account: data?.response?.account || null
+        account: data?.response?.account || null,
+        error: data?.response?.error || null,
+        rejected: data?.meta?.cancelled || false,
+        expired: data?.meta?.expired || false
       };
     } catch (error) {
       console.error('Failed to get payload status:', error);
       return {
         success: false,
-        error: error.message
+        error: error.message || 'Failed to get payload status',
+        isPending: false,
+        isSigned: false
       };
     }
   }

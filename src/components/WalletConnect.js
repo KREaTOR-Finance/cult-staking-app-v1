@@ -39,84 +39,207 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
   const handleRedirect = useCallback(async () => {
     const currentPayloadId = payloadId || localStorage.getItem('xaman_payload_id');
     
-    if (currentPayloadId) {
-      try {
-        addDebugLog(`Checking payload status after return. PayloadID: ${currentPayloadId}`);
-        
-        const status = await xamanService.getPayloadStatus(currentPayloadId);
-        addDebugLog(`Return status: ${JSON.stringify(status, null, 2)}`);
-        
-        if (status.success) {
-          if (status.account) {
-            addDebugLog(`Successfully connected with account: ${status.account}`);
-            onConnect(status.account);
-            
-            // Clear states
-            setQrCode(null);
-            setDeepLink(null);
-            setPayloadId(null);
-            setAppStoreLink(null);
-            setDebugLogs([]);
-            localStorage.removeItem('xaman_payload_id');
-            
-            // Navigate using hash for better compatibility
-            navigate('#/dashboard');
-          } else {
-            addDebugLog('Account not yet signed, waiting for signature...');
-          }
-        } else {
-          addDebugLog(`Invalid status response: ${JSON.stringify(status, null, 2)}`);
-        }
-      } catch (err) {
-        console.error('❌ Redirect handling failed:', err);
-        addDebugLog(`Redirect error: ${err.message}`);
+    if (!currentPayloadId) {
+      addDebugLog('No payload ID found for status check');
+      return { success: false, reason: 'no_payload' };
+    }
+
+    try {
+      addDebugLog(`Checking payload status after return. PayloadID: ${currentPayloadId}`);
+      
+      const status = await xamanService.getPayloadStatus(currentPayloadId);
+      addDebugLog(`Return status: ${JSON.stringify(status, null, 2)}`);
+      
+      if (!status.success) {
+        addDebugLog(`Failed to get status: ${status.error}`);
+        return { success: false, reason: 'status_error', error: status.error };
+      }
+
+      if (status.expired) {
+        addDebugLog('Sign request has expired');
         localStorage.removeItem('xaman_payload_id');
         setPayloadId(null);
+        return { success: false, reason: 'expired' };
       }
-    } else {
-      addDebugLog('No payload ID found for status check');
+
+      if (status.rejected) {
+        addDebugLog('Sign request was rejected');
+        localStorage.removeItem('xaman_payload_id');
+        setPayloadId(null);
+        return { success: false, reason: 'rejected' };
+      }
+
+      if (status.error) {
+        addDebugLog(`Sign request error: ${status.error}`);
+        return { success: false, reason: 'sign_error', error: status.error };
+      }
+
+      if (status.account) {
+        addDebugLog(`Successfully connected with account: ${status.account}`);
+        
+        // Clear states before connecting to prevent race conditions
+        setQrCode(null);
+        setDeepLink(null);
+        setPayloadId(null);
+        setAppStoreLink(null);
+        setDebugLogs([]);
+        setIsConnecting(false);
+        localStorage.removeItem('xaman_payload_id');
+        
+        // Connect and navigate
+        onConnect(status.account);
+        navigate('#/dashboard');
+        return { success: true, account: status.account };
+      }
+
+      // Still waiting for signature
+      addDebugLog('Account not yet signed, waiting for signature...');
+      return { success: false, reason: 'pending' };
+      
+    } catch (err) {
+      console.error('❌ Redirect handling failed:', err);
+      addDebugLog(`Redirect error: ${err.message}`);
+      return { success: false, reason: 'error', error: err.message };
     }
   }, [payloadId, onConnect, addDebugLog, navigate]);
 
   useEffect(() => {
-    // Check for signed=true in URL params
-    const urlParams = new URLSearchParams(window.location.search);
-    const isSignedReturn = urlParams.get('signed') === 'true';
+    let redirectCheckInterval;
+    let retryCount = 0;
+    const MAX_RETRIES = 30; // 60 seconds total with 2-second interval
     
-    if (isSignedReturn) {
-      addDebugLog('Detected signed=true in URL, handling return...');
-      
-      // Get the payload ID from localStorage before cleaning up
-      const storedPayloadId = localStorage.getItem('xaman_payload_id');
-      if (storedPayloadId) {
-        addDebugLog(`Found stored payload ID: ${storedPayloadId}`);
-        setPayloadId(storedPayloadId);
-      }
-      
-      // Clean up the URL to prevent loops
-      window.history.replaceState({}, document.title, window.location.pathname);
-      handleRedirect();
-    } else {
-      addDebugLog('No signed parameter, checking existing connection...');
-      checkConnection();
-    }
+    const checkAndHandleRedirect = async () => {
+      try {
+        // Check for signed=true in URL params
+        const urlParams = new URLSearchParams(window.location.search);
+        const isSignedReturn = urlParams.get('signed') === 'true';
+        
+        if (isSignedReturn) {
+          addDebugLog('Detected signed=true in URL, handling return...');
+          
+          // Get the payload ID from localStorage
+          const storedPayloadId = localStorage.getItem('xaman_payload_id');
+          if (!storedPayloadId) {
+            addDebugLog('No stored payload ID found, checking for existing connection...');
+            const connected = await checkConnection();
+            if (connected) {
+              // Clean up URL and clear interval if we're already connected
+              window.history.replaceState({}, document.title, window.location.pathname + '#/dashboard');
+              if (redirectCheckInterval) {
+                clearInterval(redirectCheckInterval);
+              }
+              return;
+            }
+          }
 
-    // Handle page visibility changes (for mobile app returns)
+          if (storedPayloadId) {
+            addDebugLog(`Found stored payload ID: ${storedPayloadId}`);
+            setPayloadId(storedPayloadId);
+            
+            // Try to handle the redirect
+            const result = await handleRedirect();
+            addDebugLog(`Redirect result: ${JSON.stringify(result)}`);
+            
+            if (result.success) {
+              // Clean up the URL and clear the interval if successful
+              window.history.replaceState({}, document.title, window.location.pathname + '#/dashboard');
+              if (redirectCheckInterval) {
+                clearInterval(redirectCheckInterval);
+              }
+              return;
+            }
+
+            // Handle different failure reasons
+            retryCount++;
+            if (retryCount >= MAX_RETRIES || 
+                ['expired', 'rejected', 'error'].includes(result.reason)) {
+              addDebugLog(`Stopping retries: ${result.reason}`);
+              clearInterval(redirectCheckInterval);
+              
+              // Show appropriate error message
+              switch (result.reason) {
+                case 'expired':
+                  setError('Connection request expired. Please try again.');
+                  break;
+                case 'rejected':
+                  setError('Connection request was rejected.');
+                  break;
+                case 'error':
+                  setError(`Connection failed: ${result.error}`);
+                  break;
+                default:
+                  setError('Connection timed out. Please try again.');
+              }
+              
+              // Clean up states
+              setIsConnecting(false);
+              setQrCode(null);
+              setDeepLink(null);
+              setPayloadId(null);
+              localStorage.removeItem('xaman_payload_id');
+              
+              // Redirect to home page on failure
+              window.history.replaceState({}, document.title, window.location.pathname);
+            }
+          }
+        } else {
+          addDebugLog('No signed parameter, checking existing connection...');
+          const connected = await checkConnection();
+          if (connected) {
+            clearInterval(redirectCheckInterval);
+          }
+        }
+      } catch (error) {
+        addDebugLog(`Error in checkAndHandleRedirect: ${error.message}`);
+        console.error('Check and handle redirect error:', error);
+      }
+    };
+
+    // Initial check - wrap in try/catch to prevent uncaught errors
+    try {
+      checkAndHandleRedirect();
+    } catch (error) {
+      console.error('Initial redirect check error:', error);
+    }
+    
+    // Set up interval to keep checking (will be cleared on success)
+    redirectCheckInterval = setInterval(() => {
+      try {
+        checkAndHandleRedirect();
+      } catch (error) {
+        console.error('Interval redirect check error:', error);
+      }
+    }, 2000);
+
+    // Handle page visibility changes
     const handleVisibilityChange = () => {
       if (!document.hidden) {
         addDebugLog('Page became visible, checking connection status...');
-        handleRedirect();
+        try {
+          checkAndHandleRedirect();
+        } catch (error) {
+          console.error('Visibility change handler error:', error);
+        }
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleRedirect);
+    window.addEventListener('focus', () => {
+      try {
+        checkAndHandleRedirect();
+      } catch (error) {
+        console.error('Focus handler error:', error);
+      }
+    });
 
     return () => {
+      if (redirectCheckInterval) {
+        clearInterval(redirectCheckInterval);
+      }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleRedirect);
+      window.removeEventListener('focus', checkAndHandleRedirect);
     };
-  }, [checkConnection, handleRedirect, addDebugLog, navigate]);
+  }, [checkConnection, handleRedirect, addDebugLog]);
 
   const connectWallet = async () => {
     // Don't create a new sign request if we're already connecting
@@ -131,6 +254,12 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
       setAppStoreLink(null);
       setDebugLogs([]); // Clear previous logs
 
+      // Clear any existing connection state
+      await xamanService.disconnect();
+      setQrCode(null);
+      setDeepLink(null);
+      setPayloadId(null);
+
       addDebugLog('Creating sign request...');
       const signRequest = await xamanService.createSignRequest();
       addDebugLog(`Sign request created: ${JSON.stringify(signRequest, null, 2)}`);
@@ -144,37 +273,53 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
       setPayloadId(signRequest.payloadId);
       addDebugLog(`Payload ID set and stored: ${signRequest.payloadId}`);
 
+      // Create a reference for the polling interval
+      let pollInterval;
+
       // Start polling for payload status
-      const pollInterval = setInterval(async () => {
+      pollInterval = setInterval(async () => {
         try {
           const status = await xamanService.getPayloadStatus(signRequest.payloadId);
           addDebugLog(`Poll status: ${JSON.stringify(status)}`);
-          if (status.success && status.account) {
-            clearInterval(pollInterval);
-            onConnect(status.account);
-            setQrCode(null);
-            setDeepLink(null);
-            setPayloadId(null);
-            setAppStoreLink(null);
-            // Navigate using hash routing
-            navigate('#/dashboard');
+          
+          if (status.success) {
+            if (status.account) {
+              clearInterval(pollInterval);
+              onConnect(status.account);
+              setQrCode(null);
+              setDeepLink(null);
+              setPayloadId(null);
+              setAppStoreLink(null);
+              setIsConnecting(false);
+              // Navigate using hash routing
+              navigate('#/dashboard');
+            } else if (status.error) {
+              clearInterval(pollInterval);
+              throw new Error(status.error);
+            }
           }
         } catch (error) {
           addDebugLog(`Poll error: ${error.message}`);
+          clearInterval(pollInterval);
+          setError('Connection failed. Please try again.');
+          setIsConnecting(false);
         }
       }, 2000);
 
-      // Clear polling after 5 minutes
+      // Clear polling after 10 minutes (matching the increased expiry time)
       setTimeout(() => {
-        clearInterval(pollInterval);
+        if (pollInterval) {
+          clearInterval(pollInterval);
+        }
         if (!walletAddress) {
           setError('Connection request expired');
           setQrCode(null);
           setDeepLink(null);
           setPayloadId(null);
           setAppStoreLink(null);
+          setIsConnecting(false);
         }
-      }, 5 * 60 * 1000);
+      }, 10 * 60 * 1000);
 
       if (isMobile) {
         if (!signRequest.deepLink) {
@@ -182,7 +327,10 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
         }
         
         addDebugLog(`Opening mobile deep link: ${signRequest.deepLink}`);
-        window.location.href = signRequest.deepLink;
+        // Add a small delay before opening the deep link to ensure state is updated
+        setTimeout(() => {
+          window.location.href = signRequest.deepLink;
+        }, 100);
       } else {
         // Desktop flow with QR code
         setQrCode(signRequest.qrUrl);
@@ -191,7 +339,6 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
     } catch (error) {
       addDebugLog(`Error: ${error.message}`);
       setError(error.message);
-    } finally {
       setIsConnecting(false);
     }
   };

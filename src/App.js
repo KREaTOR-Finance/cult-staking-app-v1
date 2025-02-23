@@ -26,16 +26,32 @@ function App() {
   const checkWalletConnection = useCallback(async () => {
     try {
       const address = await xamanService.getConnectedAddress();
-      if (address && !walletAddress) {  // Only show notification if wallet wasn't connected before
-        setWalletAddress(address);
-        showNotification('Wallet connected successfully', 'success');
-        // Clean up URL only after successful connection
-        window.history.replaceState({}, document.title, window.location.pathname);
-      } else if (address) {
-        setWalletAddress(address);  // Just update the address without notification
+      if (address) {
+        if (!walletAddress) {
+          setWalletAddress(address);
+          // Clean up URL only after successful connection
+          window.history.replaceState({}, document.title, window.location.pathname);
+          
+          // Only show notification if this was an initial connection
+          showNotification('Wallet connected successfully', 'success');
+        } else {
+          // Just update the address without notification for subsequent checks
+          setWalletAddress(address);
+        }
+      } else if (walletAddress) {
+        // Handle case where wallet was disconnected externally
+        setWalletAddress(null);
+        showNotification('Wallet disconnected', 'info');
       }
     } catch (error) {
       console.error('Failed to check wallet connection:', error);
+      // Only show error if we thought we were connected
+      if (walletAddress) {
+        setWalletAddress(null);
+        showNotification('Wallet connection lost', 'error');
+      }
+    } finally {
+      setIsInitializing(false);
     }
   }, [walletAddress, showNotification]);
 
@@ -109,11 +125,15 @@ function App() {
 
   const handleWalletConnect = (address) => {
     setWalletAddress(address);
-    showNotification('Wallet connected successfully', 'success');
+    // Add a small delay before showing the success notification to ensure dashboard is loaded
+    setTimeout(() => {
+      showNotification('Wallet connected successfully', 'success');
+    }, 500);
   };
 
   const handleWalletDisconnect = async () => {
     try {
+      setIsInitializing(true); // Show loading state during disconnect
       await xamanService.disconnect();
       setWalletAddress(null);
       showNotification('Wallet disconnected', 'info');
@@ -121,6 +141,8 @@ function App() {
     } catch (error) {
       console.error('Disconnect error:', error);
       showNotification('Failed to disconnect wallet', 'error');
+    } finally {
+      setIsInitializing(false);
     }
   };
 
@@ -145,6 +167,12 @@ function App() {
   const getProfileInitial = (address) => {
     return address ? address.charAt(0).toUpperCase() : '?';
   };
+
+  // Add effect to periodically check connection status
+  useEffect(() => {
+    const connectionCheck = setInterval(checkWalletConnection, 30000); // Check every 30 seconds
+    return () => clearInterval(connectionCheck);
+  }, [checkWalletConnection]);
 
   if (isInitializing) {
     return (
