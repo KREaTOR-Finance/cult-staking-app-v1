@@ -121,25 +121,20 @@ class XamanService {
       // Clear any existing connection attempts
       await this.disconnect();
       
-      // Construct return URLs with proper path and origin
-      const returnUrl = new URL(window.location.href);
+      // Get the base URL for the app
+      const isGitHubPages = window.location.hostname === 'kreator-finance.github.io';
+      const baseUrl = isGitHubPages 
+        ? 'https://kreator-finance.github.io/cult-staking-app-v1'
+        : window.location.origin;
       
-      // Handle local development URLs
-      let baseUrl;
-      if (returnUrl.hostname.includes('192.168.') || returnUrl.hostname.includes('localhost')) {
-        // For local development, use the current origin consistently
-        baseUrl = returnUrl.origin;
-      } else {
-        // For production, use the actual domain
-        baseUrl = returnUrl.origin;
-      }
-      
-      // Construct the return path
-      const returnPath = baseUrl + '/?signed=true#/dashboard';
+      // Construct the return path with the correct base URL and hash
+      const returnPath = `${baseUrl}/?signed=true#/dashboard`;
       
       console.log('Sign request details:', {
         returnPath,
-        isMobile: this.isMobile
+        isMobile: this.isMobile,
+        isGitHubPages,
+        currentUrl: window.location.href
       });
       
       const requestBody = {
@@ -154,24 +149,14 @@ class XamanService {
             web: returnPath
           },
           next: {
-            always: returnPath
+            always: returnPath,
+            app: returnPath,
+            web: returnPath
           },
           submit: true,
-          forceType: this.isMobile ? 'app' : 'web',
-          // Add mobile specific options
-          mobile: {
-            return_url: {
-              app: returnPath,
-              web: returnPath
-            }
-          }
+          forceType: this.isMobile ? 'app' : 'web'
         }
       };
-
-      // For mobile, ensure consistent deep linking
-      if (this.isMobile) {
-        requestBody.options.next.app = returnPath;
-      }
 
       console.log('Request body:', JSON.stringify(requestBody, null, 2));
 

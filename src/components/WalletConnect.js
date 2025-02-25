@@ -47,10 +47,8 @@ const WalletConnect = ({ onConnect, onDisconnect, walletAddress }) => {
           // Connect
           onConnect(status.account);
           
-          // Clean up URL - preserve any existing hash
-          const currentHash = window.location.hash || '#/dashboard';
-          const baseUrl = window.location.href.split('?')[0];
-          window.history.replaceState({}, document.title, baseUrl + currentHash);
+          // Let the hash route handle navigation
+          addDebugLog('Connection complete, hash route will handle navigation');
         } else {
           addDebugLog('Connection not completed');
           setError('Please complete the connection in Xaman');
