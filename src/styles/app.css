@@ -872,29 +872,242 @@ input:focus, select:focus {
 
 /* Profile styles */
 .profile-container {
-  padding: 20px;
-  background-color: #121212;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
 }
 
 .profile-header {
   display: flex;
   align-items: center;
-  gap: 20px;
-  margin-bottom: 30px;
+  gap: 2rem;
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
 }
 
 .profile-pfp {
   width: 120px;
-  height: 120px;
-  border-radius: 60px;
-  overflow: hidden;
-  border: 3px solid var(--primary-color);
+  height: auto;
+  border-radius: 50%;
+  overflow: visible;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
 }
 
-.profile-pfp img {
+.profile-pfp .profile-image-lg,
+.profile-pfp .profile-initial,
+.profile-pfp .profile-nft-image {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.profile-pfp .select-pfp-button {
+  width: 120px;
+  margin-top: 10px;
+  font-size: 12px;
+  padding: 6px 8px;
+  background-color: var(--primary);
+  color: var(--text-dark);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-weight: 600;
+  text-align: center;
+}
+
+.profile-pfp .select-pfp-button:hover {
+  background-color: var(--primary-dark);
+  transform: translateY(-2px);
+}
+
+.profile-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.default-pfp {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(45deg, #2a2a2a, #3a3a3a);
+  color: #666;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.default-pfp:hover {
+  background: linear-gradient(45deg, #3a3a3a, #4a4a4a);
+  color: #888;
+}
+
+.profile-info {
+  flex: 1;
+}
+
+.wallet-address {
+  font-family: monospace;
+  color: #888;
+  margin: 0.5rem 0;
+}
+
+.inner-circle-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background: linear-gradient(45deg, #ffd700, #ffa500);
+  border-radius: 20px;
+  font-size: 0.8rem;
+  color: #000;
+}
+
+.profile-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1.5rem;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.stat-card h3 {
+  color: #888;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.stat-card p {
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin: 0;
+}
+
+.pfp-selection {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 1.5rem;
+  border-radius: 12px;
+}
+
+.pfp-selection h3 {
+  margin-bottom: 1.5rem;
+  color: #fff;
+}
+
+.nft-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1.5rem;
+}
+
+.nft-card {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  overflow: visible;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  padding-bottom: 15px;
+  margin-bottom: 10px;
+  border: 2px solid transparent;
+}
+
+.nft-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.nft-card.selected {
+  border: 2px solid var(--primary);
+}
+
+.nft-image-container {
+  position: relative;
+  width: 100%;
+  height: 0;
+  padding-bottom: 100%;
+  overflow: hidden;
+  border-radius: 8px 8px 0 0;
+}
+
+.nft-image-container img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.selected-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px 8px 0 0;
+}
+
+.selected-overlay span {
+  font-size: 32px;
+  color: var(--primary);
+}
+
+.nft-card h4 {
+  padding: 1rem;
+  margin: 0;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.inner-circle-tag {
+  display: block;
+  text-align: center;
+  padding: 0.25rem;
+  background: linear-gradient(45deg, #ffd700, #ffa500);
+  color: #000;
+  font-size: 0.7rem;
+  margin: -0.5rem 0 0.5rem;
+}
+
+.nft-card.error {
+  opacity: 0.7;
+}
+
+/* Loading and Error States */
+.loading, .error {
+  text-align: center;
+  padding: 2rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  margin: 2rem auto;
+  max-width: 400px;
+}
+
+.error {
+  color: #ff6b6b;
 }
 
 /* Leaderboard styles */
@@ -976,58 +1189,66 @@ input:focus, select:focus {
   animation: glow 2s infinite;
 }
 
-/* Notification styles */
+/* Notification */
 .notification {
   position: fixed;
-  bottom: 2rem;
-  right: 2rem;
-  padding: 1rem 1.5rem;
-  border-radius: var(--radius);
-  font-weight: 500;
-  animation: slideIn 0.3s ease-out forwards;
+  top: 20px;
+  right: 20px;
+  max-width: 280px;
+  padding: 10px 15px;
+  border-radius: 6px;
+  background-color: #333;
+  color: white;
   z-index: 1000;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  box-shadow: var(--shadow-lg);
-  max-width: 400px;
-  animation-fill-mode: both;
-}
-
-.notification.info {
-  background: var(--primary);
-  color: black;
+  justify-content: space-between;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  animation: slideIn 0.3s ease-out;
+  pointer-events: auto;
 }
 
 .notification.success {
-  background: var(--success);
-  color: white;
+  background-color: rgba(76, 175, 80, 0.85);
 }
 
 .notification.error {
-  background: var(--error);
-  color: white;
+  background-color: rgba(244, 67, 54, 0.85);
+}
+
+.notification.info {
+  background-color: rgba(33, 150, 243, 0.85);
+}
+
+/* Add a wrapper for notification to ensure correct positioning */
+.notification-wrapper {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000;
+  pointer-events: none;
 }
 
 @keyframes slideIn {
-  0% {
+  from {
     transform: translateX(100%);
     opacity: 0;
   }
-  100% {
+  to {
     transform: translateX(0);
     opacity: 1;
   }
 }
 
-@keyframes slideOut {
-  0% {
-    transform: translateX(0);
-    opacity: 1;
-  }
-  100% {
-    transform: translateX(100%);
-    opacity: 0;
+/* Updated mobile notification styles */
+@media (max-width: 768px) {
+  .notification {
+    bottom: 10px;
+    right: 10px;
+    left: auto;
+    max-width: 90%;
+    width: auto;
+    padding: 6px 10px;
   }
 }
 
@@ -1345,55 +1566,70 @@ input:focus, select:focus {
 
 /* NFT List Styles */
 .nft-list {
-  padding: 1rem;
-  background: #000;
-  min-height: 100vh;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
 }
 
 .nft-list-item {
+  background: rgba(30, 30, 30, 0.8);
+  border: 1px solid rgba(255, 215, 0, 0.1);
+  border-radius: var(--radius);
+  padding: 1rem;
+  transition: var(--transition);
   display: flex;
-  align-items: center;
-  padding: 0.75rem;
-  margin-bottom: 0.75rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
+  flex-direction: column;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  box-shadow: var(--shadow);
 }
 
 .nft-list-item:hover {
-  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-3px);
+  border-color: var(--primary);
+  box-shadow: var(--shadow-lg);
 }
 
 .nft-icon {
-  width: 48px;
-  height: 48px;
-  margin-right: 1rem;
-  border-radius: 8px;
+  width: 100%;
+  height: 200px;
+  border-radius: var(--radius);
   overflow: hidden;
+  margin-bottom: 1rem;
+  background: rgba(0, 0, 0, 0.3);
+  position: relative;
 }
 
 .nft-icon img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.nft-list-item:hover .nft-icon img {
+  transform: scale(1.05);
 }
 
 .nft-info {
-  flex: 1;
+  padding: 0.5rem 0;
 }
 
 .nft-number {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--primary);
   margin-bottom: 0.25rem;
+  font-family: 'Orbitron', sans-serif;
 }
 
 .nft-id {
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.6);
-  font-family: monospace;
+  color: var(--text-muted);
+  word-break: break-all;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Update container styles */
@@ -1533,4 +1769,415 @@ input:focus, select:focus {
   font-size: 0.875rem;
   color: var(--text-muted);
   margin-top: 0.25rem;
+}
+
+/* PFP Selection Styles */
+.selected-pfp {
+  border: 2px solid var(--primary) !important;
+  box-shadow: 0 0 15px var(--primary-light) !important;
+}
+
+.selected-pfp-indicator {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  background: var(--primary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
+.pfp-check {
+  color: var(--background-dark);
+  font-size: 1rem;
+  font-weight: bold;
+}
+
+.select-pfp-button {
+  width: 90%;
+  margin: 10px auto 0;
+  background-color: var(--primary);
+  color: var(--background-dark);
+  border: none;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 600;
+  text-align: center;
+}
+
+.select-pfp-button:hover:not(:disabled) {
+  background-color: var(--primary-dark);
+  transform: translateY(-2px);
+}
+
+.select-pfp-button:disabled {
+  background-color: #5c5c5c;
+  cursor: not-allowed;
+  color: #e0e0e0;
+}
+
+/* Profile Actions */
+.profile-actions {
+  display: flex;
+  gap: 1rem;
+  margin: 1.5rem 0;
+  justify-content: center;
+}
+
+.clear-pfp-button {
+  background: rgba(255, 0, 0, 0.1);
+  color: var(--error);
+  border: 1px solid var(--error);
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.clear-pfp-button:hover {
+  background: rgba(255, 0, 0, 0.2);
+  transform: translateY(-2px);
+}
+
+.select-pfp-link {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  background: rgba(255, 215, 0, 0.1);
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  text-decoration: none;
+  transition: var(--transition);
+}
+
+.select-pfp-link:hover {
+  background: rgba(255, 215, 0, 0.2);
+  transform: translateY(-2px);
+}
+
+.nft-details {
+  margin-top: 0.75rem;
+}
+
+.nft-details h3 {
+  color: var(--primary);
+  font-size: 1.1rem;
+  margin-bottom: 0.25rem;
+}
+
+.section-title {
+  margin: 2rem 0 1rem;
+  color: var(--text-primary);
+  font-size: 1.25rem;
+  position: relative;
+  padding-bottom: 0.5rem;
+}
+
+.section-title:after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 50px;
+  height: 3px;
+  background: var(--primary);
+}
+
+.no-nfts-message {
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--radius);
+  grid-column: 1 / -1;
+}
+
+/* Mobile styles */
+@media (max-width: 768px) {
+  .profile-actions {
+    flex-direction: column;
+  }
+  
+  .selected-pfp-indicator {
+    width: 24px;
+    height: 24px;
+    top: 8px;
+    right: 8px;
+  }
+  
+  .pfp-check {
+    font-size: 0.85rem;
+  }
+}
+
+/* Profile Image Styles */
+.profile-nft-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.profile-image .profile-nft-image {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  transition: var(--transition);
+}
+
+.profile-initial {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--primary);
+  color: var(--text-light);
+  font-weight: bold;
+  font-size: 24px;
+  border-radius: 50%;
+}
+
+.profile-image-sm {
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
+}
+
+.profile-image-lg {
+  width: 120px;
+  height: 120px;
+  font-size: 40px;
+}
+
+/* Hover effects */
+.profile-image:hover .profile-nft-image {
+  transform: scale(1.05);
+  border: 2px solid var(--primary);
+}
+
+.profile-image:hover .profile-initial {
+  transform: scale(1.05);
+}
+
+/* Admin sections to add */
+.admin-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  background: var(--primary);
+  color: var(--background-dark);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-left: 0.75rem;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .profile-image .profile-nft-image,
+  .profile-image .profile-initial {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .profile-image-lg {
+    width: 80px;
+    height: 80px;
+    font-size: 30px;
+  }
+}
+
+/* Connection warning */
+.connection-warning {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  background-color: rgba(255, 165, 0, 0.9);
+  color: #000;
+  padding: 8px 16px;
+  z-index: 1000;
+  text-align: center;
+  font-size: 0.9rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.connection-warning-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.connection-warning i {
+  color: #333;
+}
+
+.reconnect-button {
+  background: rgba(0, 0, 0, 0.2);
+  color: #000;
+  border: none;
+  padding: 3px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: var(--transition);
+}
+
+.reconnect-button:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.retry-button {
+  display: inline-block;
+  margin: 1rem auto;
+  padding: 0.5rem 1.5rem;
+  background: var(--primary);
+  color: var(--background-dark);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: var(--transition);
+  font-weight: 500;
+}
+
+.retry-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Mobile styles for connection warnings */
+@media (max-width: 768px) {
+  .connection-warning {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+  }
+  
+  .connection-warning-content {
+    flex-wrap: wrap;
+  }
+}
+
+/* Enhanced NFT Grid for Profile page */
+.profile-container .nft-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.profile-container .nft-card {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  overflow: visible;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  padding-bottom: 15px;
+  margin-bottom: 10px;
+  border: 2px solid transparent;
+}
+
+.profile-container .nft-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.profile-container .nft-card.selected {
+  border: 2px solid var(--primary);
+}
+
+.profile-container .nft-image-container {
+  position: relative;
+  width: 100%;
+  height: 0;
+  padding-bottom: 100%;
+  overflow: hidden;
+  border-radius: 8px 8px 0 0;
+}
+
+.profile-container .nft-image-container img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-container .selected-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px 8px 0 0;
+}
+
+.profile-container .selected-overlay span {
+  font-size: 32px;
+  color: var(--primary);
+}
+
+/* Ensure buttons are visible */
+.profile-container .select-pfp-button {
+  width: 90%;
+  margin: 10px auto 0;
+  background-color: var(--primary);
+  color: var(--background-dark);
+  border: none;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 600;
+  text-align: center;
+  display: block;
+}
+
+.profile-container .select-pfp-button:hover:not(:disabled) {
+  background-color: var(--primary-dark);
+  transform: translateY(-2px);
+}
+
+.profile-container .select-pfp-button:disabled {
+  background-color: #5c5c5c;
+  cursor: not-allowed;
+  color: #e0e0e0;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .profile-container .nft-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+    
+    .select-pfp-button {
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+}
+
+/* NFT Actions in Staking */
+.nft-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
 }

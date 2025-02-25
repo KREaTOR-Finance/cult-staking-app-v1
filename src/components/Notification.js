@@ -27,16 +27,23 @@ const Notification = ({ message, type = 'info', duration = 5000, onClose }) => {
     }
   };
 
+  const handleClose = () => {
+    setIsVisible(false);
+    onClose?.();
+  };
+
   return (
-    <div className={`notification ${type}`}>
-      <i className={getIcon()}></i>
-      <span className="notification-message">{message}</span>
-      <button className="notification-close" onClick={() => {
-        setIsVisible(false);
-        onClose?.();
-      }}>
-        <i className="fas fa-times"></i>
-      </button>
+    <div className="notification-wrapper">
+      <div className={`notification ${type}`}>
+        <i className={getIcon()} style={{ marginRight: '8px', fontSize: '16px' }}></i>
+        <span>{message}</span>
+        <span 
+          onClick={handleClose}
+          style={{ cursor: 'pointer', fontSize: '16px', marginLeft: '10px' }}
+        >
+          ×
+        </span>
+      </div>
     </div>
   );
 };

@@ -2,12 +2,15 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { HashRouter as Router } from 'react-router-dom';
 import { connectToXRPL, disconnectFromXRPL } from './services/XRPLService';
 import xamanService from './services/XamanService';
+import * as StorageService from './services/StorageService';
 import WalletConnect from './components/WalletConnect';
 import Staking from './components/Staking';
 import Dashboard from './components/Dashboard';
 import Profile from './components/Profile';
 import Leaderboard from './components/Leaderboard';
 import Notification from './components/Notification';
+import ProfileImage from './components/ProfileImage';
+import NetworkStatus from './components/NetworkStatus';
 import './styles/app.css';
 
 function App() {
@@ -16,36 +19,55 @@ function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isInitializing, setIsInitializing] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [connectionAttempts, setConnectionAttempts] = useState(0);
+  const [xrplConnected, setXrplConnected] = useState(false);
   const menuRef = useRef(null);
+  const reconnectTimeoutRef = useRef(null);
+  const isConnectedRef = useRef(false);
 
   const showNotification = useCallback((message, type = 'info') => {
     setNotification({ message, type });
-    setTimeout(() => setNotification(null), 5000);
+    setTimeout(() => setNotification(null), 3000);
   }, []);
 
   const checkWalletConnection = useCallback(async () => {
     try {
       const address = await xamanService.getConnectedAddress();
+      
       if (address) {
         if (!walletAddress) {
           setWalletAddress(address);
-          // Clean up URL only after successful connection
           window.history.replaceState({}, document.title, window.location.pathname);
           
-          // Only show notification if this was an initial connection
+          StorageService.saveWalletAddress(address);
+          
+          const savedPFP = StorageService.getSelectedPFP(address);
+          if (savedPFP) {
+            const metadata = StorageService.getSelectedPFPMetadata(address);
+            if (metadata && metadata.image) {
+              try {
+                localStorage.setItem(`pfp_img_cache_${savedPFP}`, metadata.image);
+                sessionStorage.setItem(`pfp_img_cache_${savedPFP}`, metadata.image);
+                
+                const img = new Image();
+                img.src = metadata.image;
+              } catch (e) {
+                console.error('Error pre-caching profile image:', e);
+              }
+            }
+          }
+          
           showNotification('Wallet connected successfully', 'success');
-        } else {
-          // Just update the address without notification for subsequent checks
+        } else if (walletAddress !== address) {
           setWalletAddress(address);
+          StorageService.saveWalletAddress(address);
         }
       } else if (walletAddress) {
-        // Handle case where wallet was disconnected externally
         setWalletAddress(null);
         showNotification('Wallet disconnected', 'info');
       }
     } catch (error) {
       console.error('Failed to check wallet connection:', error);
-      // Only show error if we thought we were connected
       if (walletAddress) {
         setWalletAddress(null);
         showNotification('Wallet connection lost', 'error');
@@ -55,44 +77,107 @@ function App() {
     }
   }, [walletAddress, showNotification]);
 
+  const attemptReconnect = useCallback(async () => {
+    clearTimeout(reconnectTimeoutRef.current);
+    
+    if (connectionAttempts > 10) {
+      console.log('Maximum reconnection attempts reached. Please refresh the page.');
+      return;
+    }
+    
+    try {
+      if (connectionAttempts < 3) {
+        console.log('Attempting to reconnect to XRPL...');
+      }
+      
+      const connected = await connectToXRPL();
+      if (connected) {
+        console.log('Successfully reconnected to XRPL');
+        setXrplConnected(true);
+        isConnectedRef.current = true;
+        showNotification('XRPL connection restored', 'success');
+        
+        setConnectionAttempts(0);
+        
+        checkWalletConnection();
+      } else {
+        const delay = Math.min(5000 * Math.pow(1.5, connectionAttempts), 30000);
+        
+        reconnectTimeoutRef.current = setTimeout(() => {
+          setConnectionAttempts(prev => prev + 1);
+          attemptReconnect();
+        }, delay);
+      }
+    } catch (error) {
+      console.error('Error during XRPL reconnection attempt:', error);
+      
+      const delay = Math.min(5000 * Math.pow(1.5, connectionAttempts), 30000);
+      reconnectTimeoutRef.current = setTimeout(() => {
+        setConnectionAttempts(prev => prev + 1);
+        attemptReconnect();
+      }, delay);
+    }
+  }, [connectionAttempts, showNotification, checkWalletConnection]);
+
   useEffect(() => {
     let mounted = true;
     
     const init = async () => {
       try {
-        // Initialize XRPL connection with retries
+        const savedWalletAddress = StorageService.getWalletAddress();
+        if (savedWalletAddress && mounted) {
+          setWalletAddress(savedWalletAddress);
+          
+          const savedPFP = StorageService.getSelectedPFP(savedWalletAddress);
+          if (savedPFP) {
+            const metadata = StorageService.getSelectedPFPMetadata(savedWalletAddress);
+            if (metadata && metadata.image) {
+              try {
+                localStorage.setItem(`pfp_img_cache_${savedPFP}`, metadata.image);
+                sessionStorage.setItem(`pfp_img_cache_${savedPFP}`, metadata.image);
+                
+                const img = new Image();
+                img.src = metadata.image;
+              } catch (e) {
+                console.error('Error pre-caching profile image during init:', e);
+              }
+            }
+          }
+        }
+        
         let retries = 3;
         let connected = false;
         
         while (retries > 0 && !connected && mounted) {
           try {
             connected = await connectToXRPL();
-            if (connected) break;
+            if (connected) {
+              setXrplConnected(true);
+              break;
+            }
           } catch (err) {
             console.error('XRPL connection attempt failed:', err);
             retries--;
             if (retries > 0) {
-              await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s between retries
+              await new Promise(resolve => setTimeout(resolve, 2000));
             }
           }
         }
 
         if (!connected && mounted) {
-          showNotification('Failed to connect to XRPL network. Please refresh the page.', 'error');
-          return;
+          setXrplConnected(false);
+          showNotification('Failed to connect to XRPL network. Reconnecting in background...', 'warning');
+          reconnectTimeoutRef.current = setTimeout(attemptReconnect, 5000);
         }
 
-        // Check URL parameters for connection status
         const urlParams = new URLSearchParams(window.location.search);
         const isSignedReturn = urlParams.get('signed') === 'true';
         
         if (isSignedReturn && mounted) {
-          // Get stored return URL
           const returnUrl = localStorage.getItem('returnUrl');
           
           await checkWalletConnection();
           
-          // Clean up URL and restore hash if needed
           if (returnUrl) {
             try {
               const url = new URL(returnUrl);
@@ -108,13 +193,11 @@ function App() {
             localStorage.removeItem('returnUrl');
           }
           
-          // Remove query parameters while preserving hash
           const newUrl = window.location.origin + 
                         window.location.pathname + 
                         window.location.hash;
           window.history.replaceState({}, document.title, newUrl);
         } else if (mounted) {
-          // Only check for existing connection if not coming from sign flow
           await checkWalletConnection();
         }
       } catch (error) {
@@ -133,9 +216,10 @@ function App() {
 
     return () => {
       mounted = false;
+      clearTimeout(reconnectTimeoutRef.current);
       disconnectFromXRPL();
     };
-  }, [checkWalletConnection, showNotification]);
+  }, [checkWalletConnection, showNotification, attemptReconnect]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -152,15 +236,15 @@ function App() {
 
   const handleWalletConnect = (address) => {
     setWalletAddress(address);
-    // Add a small delay before showing the success notification to ensure dashboard is loaded
     setTimeout(() => {
-      showNotification('Wallet connected successfully', 'success');
+      setNotification({ message: 'Wallet connected successfully', type: 'success' });
+      setTimeout(() => setNotification(null), 3000);
     }, 500);
   };
 
   const handleWalletDisconnect = async () => {
     try {
-      setIsInitializing(true); // Show loading state during disconnect
+      setIsInitializing(true);
       await xamanService.disconnect();
       setWalletAddress(null);
       showNotification('Wallet disconnected', 'info');
@@ -175,7 +259,6 @@ function App() {
 
   const handleStakeNFT = async (nftId) => {
     try {
-      // Implementation in XRPLService.js
       showNotification('NFT staked successfully', 'success');
     } catch (error) {
       showNotification('Failed to stake NFT', 'error');
@@ -184,22 +267,95 @@ function App() {
 
   const handleUnstakeNFT = async (nftId) => {
     try {
-      // Implementation in XRPLService.js
       showNotification('NFT unstaked successfully', 'success');
     } catch (error) {
       showNotification('Failed to unstake NFT', 'error');
     }
   };
 
-  const getProfileInitial = (address) => {
-    return address ? address.charAt(0).toUpperCase() : '?';
-  };
-
-  // Add effect to periodically check connection status
   useEffect(() => {
-    const connectionCheck = setInterval(checkWalletConnection, 30000); // Check every 30 seconds
-    return () => clearInterval(connectionCheck);
-  }, [checkWalletConnection]);
+    let walletConnectionCheck;
+    let xrplConnectionCheck;
+    
+    if (!isInitializing) {
+      walletConnectionCheck = setInterval(checkWalletConnection, 60000);
+      
+      xrplConnectionCheck = setInterval(async () => {
+        try {
+          const connected = await connectToXRPL();
+          
+          if (connected !== isConnectedRef.current) {
+            isConnectedRef.current = connected;
+            setXrplConnected(connected);
+            
+            if (!connected && !reconnectTimeoutRef.current) {
+              reconnectTimeoutRef.current = setTimeout(attemptReconnect, 5000);
+            } else if (connected) {
+              if (!xrplConnected) {
+                showNotification('XRPL connection restored', 'success');
+              }
+              clearTimeout(reconnectTimeoutRef.current);
+              reconnectTimeoutRef.current = null;
+            }
+          }
+        } catch (error) {
+          console.error('Error checking XRPL connection:', error);
+        }
+      }, 60000);
+    }
+    
+    return () => {
+      clearInterval(walletConnectionCheck);
+      clearInterval(xrplConnectionCheck);
+      clearTimeout(reconnectTimeoutRef.current);
+    };
+  }, [checkWalletConnection, xrplConnected, attemptReconnect, showNotification, isInitializing]);
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      const path = window.location.pathname;
+      if (path.includes('/stake')) {
+        setActiveTab('staking');
+      } else if (path.includes('/profile')) {
+        setActiveTab('profile');
+      } else if (path.includes('/leaderboard')) {
+        setActiveTab('leaderboard');
+      } else {
+        setActiveTab('dashboard');
+      }
+    };
+
+    handleLocationChange();
+
+    window.addEventListener('popstate', handleLocationChange);
+    
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+    };
+  }, []);
+
+  const navigateToTab = (tab) => {
+    setActiveTab(tab);
+    
+    let path = '/';
+    switch(tab) {
+      case 'staking':
+        path = '/stake';
+        break;
+      case 'profile':
+        path = '/profile';
+        break;
+      case 'leaderboard':
+        path = '/leaderboard';
+        break;
+      default:
+        path = '/dashboard';
+    }
+    
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, '', path);
+    }
+  };
 
   if (isInitializing) {
     return (
@@ -213,30 +369,41 @@ function App() {
   return (
     <Router>
       <div className="app">
+        {!xrplConnected && !isInitializing && (
+          <div className="connection-warning">
+            <div className="connection-warning-content">
+              <i className="fas fa-exclamation-triangle"></i>
+              <span>XRPL connection issue. Data may not be up to date.</span>
+              <button onClick={attemptReconnect} className="reconnect-button">
+                Reconnect
+              </button>
+            </div>
+          </div>
+        )}
         {walletAddress && (
           <nav className="app-nav">
             <div className="nav-links">
               <button
                 className={`nav-button ${activeTab === 'dashboard' ? 'active' : ''}`}
-                onClick={() => setActiveTab('dashboard')}
+                onClick={() => navigateToTab('dashboard')}
               >
                 Dashboard
               </button>
               <button
                 className={`nav-button ${activeTab === 'staking' ? 'active' : ''}`}
-                onClick={() => setActiveTab('staking')}
+                onClick={() => navigateToTab('staking')}
               >
                 Stake NFTs
               </button>
               <button
                 className={`nav-button ${activeTab === 'profile' ? 'active' : ''}`}
-                onClick={() => setActiveTab('profile')}
+                onClick={() => navigateToTab('profile')}
               >
                 Profile
               </button>
               <button
                 className={`nav-button ${activeTab === 'leaderboard' ? 'active' : ''}`}
-                onClick={() => setActiveTab('leaderboard')}
+                onClick={() => navigateToTab('leaderboard')}
               >
                 Leaderboard
               </button>
@@ -248,7 +415,7 @@ function App() {
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 title={walletAddress}
               >
-                {getProfileInitial(walletAddress)}
+                <ProfileImage walletAddress={walletAddress} size="small" />
               </div>
               {isMenuOpen && (
                 <div className="menu-dropdown">
@@ -302,6 +469,8 @@ function App() {
             onClose={() => setNotification(null)}
           />
         )}
+
+        <NetworkStatus />
       </div>
     </Router>
   );
