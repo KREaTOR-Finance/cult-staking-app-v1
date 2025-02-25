@@ -84,8 +84,35 @@ function App() {
 
         // Check URL parameters for connection status
         const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('signed') === 'true' && mounted) {
+        const isSignedReturn = urlParams.get('signed') === 'true';
+        
+        if (isSignedReturn && mounted) {
+          // Get stored return URL
+          const returnUrl = localStorage.getItem('returnUrl');
+          
           await checkWalletConnection();
+          
+          // Clean up URL and restore hash if needed
+          if (returnUrl) {
+            try {
+              const url = new URL(returnUrl);
+              if (url.hash) {
+                window.location.hash = url.hash;
+              } else {
+                window.location.hash = '#/dashboard';
+              }
+            } catch (e) {
+              console.error('Failed to parse return URL:', e);
+              window.location.hash = '#/dashboard';
+            }
+            localStorage.removeItem('returnUrl');
+          }
+          
+          // Remove query parameters while preserving hash
+          const newUrl = window.location.origin + 
+                        window.location.pathname + 
+                        window.location.hash;
+          window.history.replaceState({}, document.title, newUrl);
         } else if (mounted) {
           // Only check for existing connection if not coming from sign flow
           await checkWalletConnection();
