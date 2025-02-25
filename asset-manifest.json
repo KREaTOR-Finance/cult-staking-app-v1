@@ -1,14 +1,14 @@
 {
   "files": {
-    "main.css": "/cult-staking-app-v1/static/css/main.294d8ae1.css",
-    "main.js": "/cult-staking-app-v1/static/js/main.c306b2a8.js",
+    "main.css": "/cult-staking-app-v1/static/css/main.a62c94c9.css",
+    "main.js": "/cult-staking-app-v1/static/js/main.c1b3f9a2.js",
     "static/media/bg-image.jpg": "/cult-staking-app-v1/static/media/bg-image.9b3e965593e18204e101.jpg",
     "index.html": "/cult-staking-app-v1/index.html",
-    "main.294d8ae1.css.map": "/cult-staking-app-v1/static/css/main.294d8ae1.css.map",
-    "main.c306b2a8.js.map": "/cult-staking-app-v1/static/js/main.c306b2a8.js.map"
+    "main.a62c94c9.css.map": "/cult-staking-app-v1/static/css/main.a62c94c9.css.map",
+    "main.c1b3f9a2.js.map": "/cult-staking-app-v1/static/js/main.c1b3f9a2.js.map"
   },
   "entrypoints": [
-    "static/css/main.294d8ae1.css",
-    "static/js/main.c306b2a8.js"
+    "static/css/main.a62c94c9.css",
+    "static/js/main.c1b3f9a2.js"
   ]
 }
