@@ -354,10 +354,105 @@ export const useXRPL = () => {
     const fetchTopStakers = useCallback(async (timeframe = 'all') => {
         setLoading(true);
         try {
-            const stakers = await XRPLService.fetchTopStakers(timeframe);
-            setTopStakers(stakers);
+            // Use mock data instead of calling the actual service
+            // This will be replaced with the real implementation later
+            const mockStakers = [
+                {
+                    address: 'rNixerUVPwrhxGDt4UooDu6FJ7zuofvjCF',
+                    stakedNFTs: 8,
+                    totalRewards: 490.15,
+                    hasInnerCircle: true,
+                    pfp: 'https://i.imgur.com/JVJp8rK.png'
+                },
+                {
+                    address: 'rLFd1FzHMScYhLGyNqSD7uyeeedMo9yEGw',
+                    stakedNFTs: 7,
+                    totalRewards: 396.10,
+                    hasInnerCircle: true,
+                    pfp: 'https://i.imgur.com/JVJp8rK.png'
+                },
+                {
+                    address: 'rHEQJRnQ9aX7YVS8mRKh8ePCN3rNGNGnpS',
+                    stakedNFTs: 5,
+                    totalRewards: 308.05,
+                    hasInnerCircle: true,
+                    pfp: 'https://i.imgur.com/JVJp8rK.png'
+                },
+                {
+                    address: 'rJb5KsHsDHF1YS5B5DU6QCkH5NsPaKQTcy',
+                    stakedNFTs: 4,
+                    totalRewards: 264.16,
+                    hasInnerCircle: false,
+                    pfp: 'https://i.imgur.com/JVJp8rK.png'
+                },
+                {
+                    address: 'rUCzEr6jrEyMpjhs4wSdQdz4g8Y382NxfM',
+                    stakedNFTs: 4,
+                    totalRewards: 230.08,
+                    hasInnerCircle: false,
+                    pfp: 'https://i.imgur.com/JVJp8rK.png'
+                },
+                {
+                    address: 'rGPnRH9xiDBb1cdcJU7PekN9X7JR1q3h7z',
+                    stakedNFTs: 3,
+                    totalRewards: 196.03,
+                    hasInnerCircle: false,
+                    pfp: 'https://i.imgur.com/JVJp8rK.png'
+                },
+                {
+                    address: 'rLRMVDvjhz3RnKZ19EQEBRbZCRTGQk2Kpi',
+                    stakedNFTs: 2,
+                    totalRewards: 164.06,
+                    hasInnerCircle: false,
+                    pfp: 'https://i.imgur.com/JVJp8rK.png'
+                },
+                {
+                    address: 'rKontEGtDju5MCEJCGGxGLqwGNvzDQFBKu',
+                    stakedNFTs: 2,
+                    totalRewards: 132.75,
+                    hasInnerCircle: false,
+                    pfp: 'https://i.imgur.com/JVJp8rK.png'
+                },
+                {
+                    address: 'rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh',
+                    stakedNFTs: 1,
+                    totalRewards: 84.50,
+                    hasInnerCircle: false,
+                    pfp: 'https://i.imgur.com/JVJp8rK.png'
+                },
+                {
+                    address: 'rDsbeomae4FXwgQTJp9Rs64Qg9vDiTCdBv',
+                    stakedNFTs: 1,
+                    totalRewards: 42.25,
+                    hasInnerCircle: false,
+                    pfp: 'https://i.imgur.com/JVJp8rK.png'
+                }
+            ];
+
+            // Filter based on timeframe
+            let filteredStakers = [...mockStakers];
+            if (timeframe === 'week') {
+                // For the week timeframe, reduce the numbers a bit
+                filteredStakers = mockStakers.map(staker => ({
+                    ...staker,
+                    stakedNFTs: Math.max(1, Math.floor(staker.stakedNFTs * 0.7)),
+                    totalRewards: staker.totalRewards * 0.2
+                }));
+            } else if (timeframe === 'month') {
+                // For the month timeframe, reduce the numbers slightly
+                filteredStakers = mockStakers.map(staker => ({
+                    ...staker,
+                    stakedNFTs: Math.max(1, Math.floor(staker.stakedNFTs * 0.9)),
+                    totalRewards: staker.totalRewards * 0.5
+                }));
+            }
+
+            // Sort by staked NFTs
+            filteredStakers.sort((a, b) => b.stakedNFTs - a.stakedNFTs);
+            
+            setTopStakers(filteredStakers);
             setError(null);
-            return stakers;
+            return filteredStakers;
         } catch (err) {
             const errorMessage = err.message || 'Failed to fetch top stakers';
             setError(errorMessage);

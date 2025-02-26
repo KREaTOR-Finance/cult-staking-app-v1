@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { HashRouter as Router } from 'react-router-dom';
+import { HashRouter as Router, useNavigate, Routes, Route, useLocation } from 'react-router-dom';
 import { connectToXRPL, disconnectFromXRPL } from './services/XRPLService';
 import xamanService from './services/XamanService';
 import * as StorageService from './services/StorageService';
@@ -16,12 +16,9 @@ import './styles/app.css';
 function App() {
   const [walletAddress, setWalletAddress] = useState(null);
   const [notification, setNotification] = useState(null);
-  const [activeTab, setActiveTab] = useState('dashboard');
   const [isInitializing, setIsInitializing] = useState(true);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [connectionAttempts, setConnectionAttempts] = useState(0);
   const [xrplConnected, setXrplConnected] = useState(false);
-  const menuRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const isConnectedRef = useRef(false);
   const walletCheckFailCountRef = useRef(0); // Track consecutive wallet check failures
@@ -294,19 +291,6 @@ function App() {
     };
   }, [checkWalletConnection, showNotification, attemptReconnect]);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setIsMenuOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
   const handleWalletConnect = (address) => {
     setWalletAddress(address);
     setTimeout(() => {
@@ -347,7 +331,6 @@ function App() {
       
       // Update state
       setWalletAddress(null);
-      setActiveTab('dashboard');
       showNotification('Wallet disconnected', 'info');
       
       // Force a page reload to ensure clean state
@@ -433,52 +416,6 @@ function App() {
     };
   }, [checkWalletConnection, xrplConnected, attemptReconnect, showNotification, isInitializing, walletAddress]);
 
-  useEffect(() => {
-    const handleLocationChange = () => {
-      const path = window.location.pathname;
-      if (path.includes('/stake')) {
-        setActiveTab('staking');
-      } else if (path.includes('/profile')) {
-        setActiveTab('profile');
-      } else if (path.includes('/leaderboard')) {
-        setActiveTab('leaderboard');
-      } else {
-        setActiveTab('dashboard');
-      }
-    };
-
-    handleLocationChange();
-
-    window.addEventListener('popstate', handleLocationChange);
-    
-    return () => {
-      window.removeEventListener('popstate', handleLocationChange);
-    };
-  }, []);
-
-  const navigateToTab = (tab) => {
-    setActiveTab(tab);
-    
-    let path = '/';
-    switch(tab) {
-      case 'staking':
-        path = '/stake';
-        break;
-      case 'profile':
-        path = '/profile';
-        break;
-      case 'leaderboard':
-        path = '/leaderboard';
-        break;
-      default:
-        path = '/dashboard';
-    }
-    
-    if (window.location.pathname !== path) {
-      window.history.pushState({}, '', path);
-    }
-  };
-
   // Listen for disconnect events from XamanService
   useEffect(() => {
     const handleXamanDisconnect = (data) => {
@@ -492,9 +429,6 @@ function App() {
         setWalletAddress(null);
         lastWalletAddressRef.current = null;
         walletCheckFailCountRef.current = 0;
-        
-        // Navigate to dashboard
-        setActiveTab('dashboard');
       }
     };
     
@@ -518,111 +452,203 @@ function App() {
 
   return (
     <Router>
-      <div className="app">
-        {!xrplConnected && !isInitializing && (
-          <div className="connection-warning">
-            <div className="connection-warning-content">
-              <i className="fas fa-exclamation-triangle"></i>
-              <span>XRPL connection issue. Data may not be up to date.</span>
-              <button onClick={attemptReconnect} className="reconnect-button">
-                Reconnect
-              </button>
-            </div>
-          </div>
-        )}
-        {walletAddress && (
-          <nav className="app-nav">
-            <div className="nav-links">
-              <button
-                className={`nav-button ${activeTab === 'dashboard' ? 'active' : ''}`}
-                onClick={() => navigateToTab('dashboard')}
-              >
-                Dashboard
-              </button>
-              <button
-                className={`nav-button ${activeTab === 'staking' ? 'active' : ''}`}
-                onClick={() => navigateToTab('staking')}
-              >
-                Stake NFTs
-              </button>
-              <button
-                className={`nav-button ${activeTab === 'profile' ? 'active' : ''}`}
-                onClick={() => navigateToTab('profile')}
-              >
-                Profile
-              </button>
-              <button
-                className={`nav-button ${activeTab === 'leaderboard' ? 'active' : ''}`}
-                onClick={() => navigateToTab('leaderboard')}
-              >
-                Leaderboard
-              </button>
-            </div>
-            
-            <div className="profile-menu" ref={menuRef}>
-              <div 
-                className="profile-image"
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                title={walletAddress}
-              >
-                <ProfileImage walletAddress={walletAddress} size="small" />
-              </div>
-              {isMenuOpen && (
-                <div className="menu-dropdown">
-                  <div className="menu-item">
-                    <i className="fas fa-wallet"></i>
-                    {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
-                  </div>
-                  <div 
-                    className="menu-item disconnect"
-                    onClick={handleWalletDisconnect}
-                  >
-                    <i className="fas fa-sign-out-alt"></i>
-                    Disconnect
-                  </div>
-                </div>
-              )}
-            </div>
-          </nav>
-        )}
-
-        <main className="app-main">
-          {!walletAddress ? (
-            <WalletConnect
-              onConnect={handleWalletConnect}
-              onDisconnect={handleWalletDisconnect}
-            />
-          ) : (
-            <>
-              {activeTab === 'dashboard' && (
-                <Dashboard walletAddress={walletAddress} />
-              )}
-              {activeTab === 'staking' && (
-                <Staking
-                  walletAddress={walletAddress}
-                  onStakeNFT={handleStakeNFT}
-                  onUnstakeNFT={handleUnstakeNFT}
-                />
-              )}
-              {activeTab === 'profile' && (
-                <Profile walletAddress={walletAddress} />
-              )}
-              {activeTab === 'leaderboard' && <Leaderboard />}
-            </>
-          )}
-        </main>
-
-        {notification && (
-          <Notification
-            message={notification.message}
-            type={notification.type}
-            onClose={() => setNotification(null)}
-          />
-        )}
-
-        <NetworkStatus />
-      </div>
+      <AppContent 
+        walletAddress={walletAddress}
+        xrplConnected={xrplConnected}
+        isInitializing={isInitializing}
+        notification={notification}
+        setNotification={setNotification}
+        attemptReconnect={attemptReconnect}
+        handleWalletConnect={handleWalletConnect}
+        handleWalletDisconnect={handleWalletDisconnect}
+        handleStakeNFT={handleStakeNFT}
+        handleUnstakeNFT={handleUnstakeNFT}
+      />
     </Router>
+  );
+}
+
+function AppContent({
+  walletAddress,
+  xrplConnected,
+  isInitializing,
+  notification,
+  setNotification,
+  attemptReconnect,
+  handleWalletConnect,
+  handleWalletDisconnect,
+  handleStakeNFT,
+  handleUnstakeNFT
+}) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState('dashboard');
+  
+  // Handle clicks outside the menu
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setIsMenuOpen(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+  
+  // Update active tab based on location
+  useEffect(() => {
+    const path = location.pathname;
+    if (path.includes('/stake')) {
+      setActiveTab('staking');
+    } else if (path.includes('/profile')) {
+      setActiveTab('profile');
+    } else if (path.includes('/leaderboard')) {
+      setActiveTab('leaderboard');
+    } else {
+      setActiveTab('dashboard');
+    }
+  }, [location]);
+  
+  const navigateToTab = (tab) => {
+    setActiveTab(tab);
+    
+    let path = '/';
+    switch(tab) {
+      case 'staking':
+        path = '/stake';
+        break;
+      case 'profile':
+        path = '/profile';
+        break;
+      case 'leaderboard':
+        path = '/leaderboard';
+        break;
+      default:
+        path = '/dashboard';
+    }
+    
+    navigate(path);
+  };
+  
+  if (isInitializing) {
+    return (
+      <div className="app-loading">
+        <div className="loading-spinner"></div>
+        <p>Initializing app...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="app">
+      {!xrplConnected && !isInitializing && (
+        <div className="connection-warning">
+          <div className="connection-warning-content">
+            <i className="fas fa-exclamation-triangle"></i>
+            <span>XRPL connection issue. Data may not be up to date.</span>
+            <button onClick={attemptReconnect} className="reconnect-button">
+              Reconnect
+            </button>
+          </div>
+        </div>
+      )}
+      {walletAddress && (
+        <nav className="app-nav">
+          <div className="nav-links">
+            <button
+              className={`nav-button ${activeTab === 'dashboard' ? 'active' : ''}`}
+              onClick={() => navigateToTab('dashboard')}
+            >
+              Dashboard
+            </button>
+            <button
+              className={`nav-button ${activeTab === 'staking' ? 'active' : ''}`}
+              onClick={() => navigateToTab('staking')}
+            >
+              Stake NFTs
+            </button>
+            <button
+              className={`nav-button ${activeTab === 'profile' ? 'active' : ''}`}
+              onClick={() => navigateToTab('profile')}
+            >
+              Profile
+            </button>
+            <button
+              className={`nav-button ${activeTab === 'leaderboard' ? 'active' : ''}`}
+              onClick={() => navigateToTab('leaderboard')}
+            >
+              Leaderboard
+            </button>
+          </div>
+          
+          <div className="profile-menu" ref={menuRef}>
+            <div 
+              className="profile-image"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              title={walletAddress}
+            >
+              <ProfileImage walletAddress={walletAddress} size="small" />
+            </div>
+            {isMenuOpen && (
+              <div className="menu-dropdown">
+                <div className="menu-item">
+                  <i className="fas fa-wallet"></i>
+                  {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                </div>
+                <div 
+                  className="menu-item disconnect"
+                  onClick={handleWalletDisconnect}
+                >
+                  <i className="fas fa-sign-out-alt"></i>
+                  Disconnect
+                </div>
+              </div>
+            )}
+          </div>
+        </nav>
+      )}
+
+      <main className="app-main">
+        {!walletAddress ? (
+          <WalletConnect
+            onConnect={handleWalletConnect}
+            onDisconnect={handleWalletDisconnect}
+          />
+        ) : (
+          <Routes>
+            <Route path="/stake" element={
+              <Staking
+                walletAddress={walletAddress}
+                onStakeNFT={handleStakeNFT}
+                onUnstakeNFT={handleUnstakeNFT}
+              />
+            } />
+            <Route path="/profile" element={
+              <Profile walletAddress={walletAddress} />
+            } />
+            <Route path="/leaderboard" element={<Leaderboard />} />
+            <Route path="*" element={
+              <Dashboard walletAddress={walletAddress} />
+            } />
+          </Routes>
+        )}
+      </main>
+
+      {notification && (
+        <Notification
+          message={notification.message}
+          type={notification.type}
+          onClose={() => setNotification(null)}
+        />
+      )}
+
+      <NetworkStatus />
+    </div>
   );
 }
 
