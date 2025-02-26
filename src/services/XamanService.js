@@ -329,27 +329,53 @@ class XamanService {
       if (timestamp && storedAccount) {
         const elapsed = Date.now() - parseInt(timestamp);
         if (elapsed > 24 * 60 * 60 * 1000) {
+          console.log('Wallet connection expired (>24h)');
           await this.disconnect();
           return null;
         }
+        
+        // Refresh the timestamp to keep the connection alive
+        localStorage.setItem('xaman_connection_timestamp', Date.now().toString());
         return storedAccount;
       }
 
       const payloadId = localStorage.getItem('xaman_payload_id');
       if (!payloadId) return null;
 
-      const status = await this.getPayloadStatus(payloadId);
-      if (!status.success || !status.account) {
-        await this.disconnect();
-        return null;
-      }
+      try {
+        const status = await this.getPayloadStatus(payloadId);
+        if (!status.success || !status.account) {
+          // Only disconnect if we're sure the payload is invalid
+          // Don't disconnect on network errors or temporary issues
+          if (status.error && status.error.includes('not found')) {
+            await this.disconnect();
+          }
+          return storedAccount || null; // Return stored account if available as fallback
+        }
 
-      // Update timestamp and store account
-      localStorage.setItem('xaman_connection_timestamp', Date.now().toString());
-      localStorage.setItem('xaman_account', status.account);
-      return status.account;
+        // Update timestamp and store account
+        localStorage.setItem('xaman_connection_timestamp', Date.now().toString());
+        localStorage.setItem('xaman_account', status.account);
+        return status.account;
+      } catch (statusError) {
+        console.error('Error checking payload status:', statusError);
+        // On network errors, don't disconnect - just return the stored account if available
+        return storedAccount || null;
+      }
     } catch (error) {
       console.error('Failed to get connected address:', error);
+      // Don't disconnect on localStorage errors or other temporary issues
+      // Only disconnect if we're sure the connection is invalid
+      try {
+        const storedAccount = localStorage.getItem('xaman_account');
+        if (storedAccount) {
+          return storedAccount; // Return stored account as fallback
+        }
+      } catch (e) {
+        console.error('Error accessing localStorage:', e);
+      }
+      
+      // If we can't get the stored account, then disconnect
       await this.disconnect();
       return null;
     }

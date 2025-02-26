@@ -25,8 +25,13 @@ const ProfileImage = ({ walletAddress, size = 'normal' }) => {
         if (!nftId) return null;
         try {
             // First try localStorage cache
-            const cache = localStorage.getItem(`pfp_img_cache_${nftId}`);
-            if (cache) return cache;
+            try {
+                const cache = localStorage.getItem(`pfp_img_cache_${nftId}`);
+                if (cache) return cache;
+            } catch (localStorageError) {
+                console.error('Error accessing localStorage for image cache:', localStorageError);
+                // Continue to next method if localStorage fails
+            }
             
             // If no localStorage cache but we have metadata, use that
             if (pfpMetadata && pfpMetadata.id === nftId && pfpMetadata.image) {
@@ -34,8 +39,13 @@ const ProfileImage = ({ walletAddress, size = 'normal' }) => {
             }
             
             // If we have a sessionStorage backup, use that
-            const sessionCache = sessionStorage.getItem(`pfp_img_cache_${nftId}`);
-            return sessionCache || null;
+            try {
+                const sessionCache = sessionStorage.getItem(`pfp_img_cache_${nftId}`);
+                return sessionCache || null;
+            } catch (sessionStorageError) {
+                console.error('Error accessing sessionStorage for image cache:', sessionStorageError);
+                return null;
+            }
         } catch (e) {
             console.error('Error accessing image cache:', e);
             return null;
@@ -60,17 +70,22 @@ const ProfileImage = ({ walletAddress, size = 'normal' }) => {
         
         img.onload = () => {
             try {
-                // Cache in both localStorage and sessionStorage for redundancy
-                localStorage.setItem(`pfp_img_cache_${nftId}`, imageUrl);
-                sessionStorage.setItem(`pfp_img_cache_${nftId}`, imageUrl);
-            } catch (e) {
-                console.error('Error caching image URL:', e);
-                // Try sessionStorage as fallback if localStorage fails
+                // Try to cache in localStorage first
+                try {
+                    localStorage.setItem(`pfp_img_cache_${nftId}`, imageUrl);
+                } catch (localStorageError) {
+                    console.error('Error caching image URL in localStorage:', localStorageError);
+                }
+                
+                // Always try sessionStorage as backup
                 try {
                     sessionStorage.setItem(`pfp_img_cache_${nftId}`, imageUrl);
                 } catch (sessionError) {
                     console.error('Error caching in sessionStorage:', sessionError);
                 }
+            } catch (e) {
+                console.error('Error in image caching process:', e);
+                // Continue even if caching fails - the image is already loaded in the UI
             }
             
             // Clean up after successful load
@@ -90,9 +105,20 @@ const ProfileImage = ({ walletAddress, size = 'normal' }) => {
     
     // Remove failed image from cache
     const removeFromImageCache = useCallback((nftId) => {
+        if (!nftId) return;
+        
         try {
-            localStorage.removeItem(`pfp_img_cache_${nftId}`);
-            sessionStorage.removeItem(`pfp_img_cache_${nftId}`);
+            try {
+                localStorage.removeItem(`pfp_img_cache_${nftId}`);
+            } catch (localStorageError) {
+                console.error('Error removing image from localStorage cache:', localStorageError);
+            }
+            
+            try {
+                sessionStorage.removeItem(`pfp_img_cache_${nftId}`);
+            } catch (sessionStorageError) {
+                console.error('Error removing image from sessionStorage cache:', sessionStorageError);
+            }
         } catch (e) {
             console.error('Error removing image from cache:', e);
         }

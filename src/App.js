@@ -24,6 +24,9 @@ function App() {
   const menuRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const isConnectedRef = useRef(false);
+  const walletCheckFailCountRef = useRef(0); // Track consecutive wallet check failures
+  const lastWalletAddressRef = useRef(null); // Keep track of the last valid wallet address
+  const walletConnectionCheckRef = useRef(null); // Reference to the wallet check interval
 
   const showNotification = useCallback((message, type = 'info') => {
     setNotification({ message, type });
@@ -32,9 +35,15 @@ function App() {
 
   const checkWalletConnection = useCallback(async () => {
     try {
+      if (isInitializing) return;
+      
       const address = await xamanService.getConnectedAddress();
       
       if (address) {
+        walletCheckFailCountRef.current = 0;
+        
+        lastWalletAddressRef.current = address;
+        
         if (!walletAddress) {
           setWalletAddress(address);
           window.history.replaceState({}, document.title, window.location.pathname);
@@ -63,19 +72,42 @@ function App() {
           StorageService.saveWalletAddress(address);
         }
       } else if (walletAddress) {
+        const storedAccount = localStorage.getItem('xaman_account');
+        const timestamp = localStorage.getItem('xaman_connection_timestamp');
+        
+        if (storedAccount && timestamp) {
+          walletCheckFailCountRef.current++;
+          
+          console.log(`Wallet connection check failed (${walletCheckFailCountRef.current}/3) but credentials exist - not disconnecting yet`);
+          
+          if (walletCheckFailCountRef.current < 3) {
+            return;
+          }
+          
+          console.log('Multiple consecutive wallet check failures - disconnecting');
+        }
+        
         setWalletAddress(null);
+        lastWalletAddressRef.current = null;
+        walletCheckFailCountRef.current = 0;
         showNotification('Wallet disconnected', 'info');
       }
     } catch (error) {
       console.error('Failed to check wallet connection:', error);
-      if (walletAddress) {
+      
+      walletCheckFailCountRef.current++;
+      
+      if (walletCheckFailCountRef.current >= 3) {
+        console.log('Multiple consecutive wallet check errors - disconnecting');
         setWalletAddress(null);
-        showNotification('Wallet connection lost', 'error');
+        lastWalletAddressRef.current = null;
+        walletCheckFailCountRef.current = 0;
+        showNotification('Wallet connection lost after multiple failures', 'error');
       }
     } finally {
       setIsInitializing(false);
     }
-  }, [walletAddress, showNotification]);
+  }, [walletAddress, showNotification, isInitializing]);
 
   const attemptReconnect = useCallback(async () => {
     clearTimeout(reconnectTimeoutRef.current);
@@ -124,18 +156,33 @@ function App() {
     
     const init = async () => {
       try {
+        // First try to restore the wallet address from storage
         const savedWalletAddress = StorageService.getWalletAddress();
         if (savedWalletAddress && mounted) {
+          // Set the last valid address reference
+          lastWalletAddressRef.current = savedWalletAddress;
           setWalletAddress(savedWalletAddress);
           
+          // Pre-load profile image if available
           const savedPFP = StorageService.getSelectedPFP(savedWalletAddress);
           if (savedPFP) {
             const metadata = StorageService.getSelectedPFPMetadata(savedWalletAddress);
             if (metadata && metadata.image) {
               try {
-                localStorage.setItem(`pfp_img_cache_${savedPFP}`, metadata.image);
-                sessionStorage.setItem(`pfp_img_cache_${savedPFP}`, metadata.image);
+                // Try to pre-cache the image, but don't fail if it doesn't work
+                try {
+                  localStorage.setItem(`pfp_img_cache_${savedPFP}`, metadata.image);
+                } catch (localStorageError) {
+                  console.error('Error caching image in localStorage during init:', localStorageError);
+                }
                 
+                try {
+                  sessionStorage.setItem(`pfp_img_cache_${savedPFP}`, metadata.image);
+                } catch (sessionStorageError) {
+                  console.error('Error caching image in sessionStorage during init:', sessionStorageError);
+                }
+                
+                // Prefetch the image
                 const img = new Image();
                 img.src = metadata.image;
               } catch (e) {
@@ -145,6 +192,7 @@ function App() {
           }
         }
         
+        // Try to connect to XRPL
         let retries = 3;
         let connected = false;
         
@@ -170,13 +218,24 @@ function App() {
           reconnectTimeoutRef.current = setTimeout(attemptReconnect, 5000);
         }
 
+        // Handle return from signing
         const urlParams = new URLSearchParams(window.location.search);
         const isSignedReturn = urlParams.get('signed') === 'true';
         
         if (isSignedReturn && mounted) {
           const returnUrl = localStorage.getItem('returnUrl');
           
-          await checkWalletConnection();
+          // Check wallet connection but don't disconnect on failure during initialization
+          try {
+            const address = await xamanService.getConnectedAddress();
+            if (address && mounted) {
+              lastWalletAddressRef.current = address;
+              setWalletAddress(address);
+              StorageService.saveWalletAddress(address);
+            }
+          } catch (walletCheckError) {
+            console.error('Error checking wallet during initialization:', walletCheckError);
+          }
           
           if (returnUrl) {
             try {
@@ -198,7 +257,17 @@ function App() {
                         window.location.hash;
           window.history.replaceState({}, document.title, newUrl);
         } else if (mounted) {
-          await checkWalletConnection();
+          // Check wallet connection but don't disconnect on failure during initialization
+          try {
+            const address = await xamanService.getConnectedAddress();
+            if (address && mounted) {
+              lastWalletAddressRef.current = address;
+              setWalletAddress(address);
+              StorageService.saveWalletAddress(address);
+            }
+          } catch (walletCheckError) {
+            console.error('Error checking wallet during initialization:', walletCheckError);
+          }
         }
       } catch (error) {
         console.error('Initialization error:', error);
@@ -216,6 +285,10 @@ function App() {
 
     return () => {
       mounted = false;
+      if (walletConnectionCheckRef.current) {
+        clearInterval(walletConnectionCheckRef.current);
+        walletConnectionCheckRef.current = null;
+      }
       clearTimeout(reconnectTimeoutRef.current);
       disconnectFromXRPL();
     };
@@ -245,13 +318,48 @@ function App() {
   const handleWalletDisconnect = async () => {
     try {
       setIsInitializing(true);
-      await xamanService.disconnect();
+      
+      // Clear all references and state
+      lastWalletAddressRef.current = null;
+      walletCheckFailCountRef.current = 0;
+      
+      // Clear any active intervals
+      if (walletConnectionCheckRef.current) {
+        clearInterval(walletConnectionCheckRef.current);
+        walletConnectionCheckRef.current = null;
+      }
+      
+      // Clear any reconnect timeouts
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      
+      // Clear local storage and session storage
+      localStorage.removeItem('walletAddress');
+      sessionStorage.removeItem('walletAddress');
+      localStorage.removeItem('profileImageUrl');
+      sessionStorage.removeItem('profileImageUrl');
+      
+      // Disconnect from the wallet service
+      const disconnectResult = await xamanService.disconnect();
+      console.log('Disconnect result:', disconnectResult);
+      
+      // Update state
       setWalletAddress(null);
-      showNotification('Wallet disconnected', 'info');
       setActiveTab('dashboard');
+      showNotification('Wallet disconnected', 'info');
+      
+      // Force a page reload to ensure clean state
+      // This is the most reliable way to ensure complete disconnection
+      window.location.reload();
     } catch (error) {
       console.error('Disconnect error:', error);
-      showNotification('Failed to disconnect wallet', 'error');
+      showNotification('Failed to disconnect wallet. Please refresh the page.', 'error');
+      
+      // Even if there's an error, try to clean up the state
+      setWalletAddress(null);
+      lastWalletAddressRef.current = null;
     } finally {
       setIsInitializing(false);
     }
@@ -274,11 +382,22 @@ function App() {
   };
 
   useEffect(() => {
-    let walletConnectionCheck;
     let xrplConnectionCheck;
     
     if (!isInitializing) {
-      walletConnectionCheck = setInterval(checkWalletConnection, 60000);
+      // Clear any existing interval first
+      if (walletConnectionCheckRef.current) {
+        clearInterval(walletConnectionCheckRef.current);
+      }
+      
+      // Check wallet connection less frequently (every 5 minutes instead of every minute)
+      // This reduces the chances of disconnection due to temporary issues
+      walletConnectionCheckRef.current = setInterval(() => {
+        // Only check if we have a wallet address or had one previously
+        if (walletAddress || lastWalletAddressRef.current) {
+          checkWalletConnection();
+        }
+      }, 5 * 60 * 1000);
       
       xrplConnectionCheck = setInterval(async () => {
         try {
@@ -305,11 +424,14 @@ function App() {
     }
     
     return () => {
-      clearInterval(walletConnectionCheck);
+      if (walletConnectionCheckRef.current) {
+        clearInterval(walletConnectionCheckRef.current);
+        walletConnectionCheckRef.current = null;
+      }
       clearInterval(xrplConnectionCheck);
       clearTimeout(reconnectTimeoutRef.current);
     };
-  }, [checkWalletConnection, xrplConnected, attemptReconnect, showNotification, isInitializing]);
+  }, [checkWalletConnection, xrplConnected, attemptReconnect, showNotification, isInitializing, walletAddress]);
 
   useEffect(() => {
     const handleLocationChange = () => {
@@ -356,6 +478,34 @@ function App() {
       window.history.pushState({}, '', path);
     }
   };
+
+  // Listen for disconnect events from XamanService
+  useEffect(() => {
+    const handleXamanDisconnect = (data) => {
+      console.log('Received disconnect event from XamanService:', data);
+      
+      if (walletAddress) {
+        // Only show notification if we were previously connected
+        showNotification('Wallet connection ended', 'info');
+        
+        // Clean up state
+        setWalletAddress(null);
+        lastWalletAddressRef.current = null;
+        walletCheckFailCountRef.current = 0;
+        
+        // Navigate to dashboard
+        setActiveTab('dashboard');
+      }
+    };
+    
+    // Add event listener
+    xamanService.addEventListener('disconnect', handleXamanDisconnect);
+    
+    // Cleanup
+    return () => {
+      xamanService.removeEventListener('disconnect', handleXamanDisconnect);
+    };
+  }, [walletAddress, showNotification]);
 
   if (isInitializing) {
     return (
